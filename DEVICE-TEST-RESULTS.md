@@ -28,6 +28,22 @@ types and ambiguous matches. All 20 unit tests, build, lint and APK signature
 verification pass. Live Search and Play Store UI tests were not repeated; the
 self-update lock remains based on Android's generic installer API.
 
+## Material 3 settings redesign (0.1.8)
+
+Version **0.1.8 (version code 9)** uses the Material 3 Expressive medium flexible
+app bar on each Google app’s tweak page. The expanded and collapsed headers show
+the app name and package. Settings use full-width list rows, body typography,
+supporting descriptions, trailing Material switches and inset dividers. Rows grow
+to fit text and expose one accessible checkable control per tweak.
+
+The release APK was installed on the Xiaomi 14. All seven settings pages and
+back navigation were inspected without changing switches. Expanded and collapsed
+ASI headers, long descriptions, switch states and the bottom restart note were
+checked. Google Phone’s page was inspected only; no call tools were used.
+Build, lint (zero errors), all 20 unit tests and release APK signature validation
+pass. Light theme, increased font scale and TalkBack interaction were not tested
+on-device. Existing hook functionality was not retested for this UI-only release.
+
 ## Migration and build
 
 The APK is installed. A final read-only LSPosed database snapshot confirmed

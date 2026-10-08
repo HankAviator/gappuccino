@@ -1,7 +1,8 @@
 # Gappuccino
 
 An LSPosed module with **18 independent tweaks across seven Google apps**.
-Tap an app icon to configure its tweaks. Supports Android dynamic colors.
+Tap an app icon to configure its tweaks. Material 3 medium flexible headers show
+each app’s name and package, with accessible list switches and Android dynamic colors.
 
 ## Features
 

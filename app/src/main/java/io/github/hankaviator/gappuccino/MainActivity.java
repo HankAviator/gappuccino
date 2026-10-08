@@ -13,7 +13,6 @@ import android.view.View;
 import android.view.accessibility.AccessibilityNodeInfo;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
-import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -25,11 +24,14 @@ import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowCompat;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.core.view.WindowInsetsControllerCompat;
+import androidx.core.widget.NestedScrollView;
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.card.MaterialCardView;
 import com.google.android.material.color.MaterialColors;
 import com.google.android.material.materialswitch.MaterialSwitch;
 import com.google.android.material.appbar.MaterialToolbar;
+import com.google.android.material.appbar.CollapsingToolbarLayout;
+import com.google.android.material.divider.MaterialDivider;
 import io.github.hankaviator.gdialertweak.testcall.TestCallManager;
 
 /** Two levels: affected apps with their icons, then each app's tweak switches. */
@@ -37,7 +39,7 @@ public final class MainActivity extends ComponentActivity {
     private String selectedPackage;
     private LinearLayout root;
     private LinearLayout content;
-    private ScrollView scroll;
+    private NestedScrollView scroll;
     private SharedPreferences prefs;
 
     @Override public void onCreate(Bundle state) {
@@ -56,7 +58,9 @@ public final class MainActivity extends ComponentActivity {
             }
         });
         render();
-        if (state != null) scroll.post(() -> scroll.scrollTo(0, state.getInt("scroll_y", 0)));
+        // App pages restore their identified scrolling views and app-bar behavior automatically.
+        if (state != null && selectedPackage == null)
+            scroll.post(() -> scroll.scrollTo(0, state.getInt("scroll_y", 0)));
     }
 
     @Override protected void onSaveInstanceState(Bundle state) {
@@ -83,23 +87,35 @@ public final class MainActivity extends ComponentActivity {
         bars.setAppearanceLightNavigationBars(light);
 
         TweakCatalog.App app = TweakCatalog.find(selectedPackage);
-        MaterialToolbar toolbar = new MaterialToolbar(this);
-        toolbar.setTitle(app == null ? "Gappuccino" : app.title());
         if (app != null) {
-            toolbar.setNavigationIcon(R.drawable.ic_back);
+            getLayoutInflater().inflate(R.layout.page_tweaks, root, true);
+            MaterialToolbar toolbar = findViewById(R.id.page_toolbar);
+            toolbar.setTitle(app.title());
+            toolbar.setSubtitle(app.packageName());
             toolbar.setNavigationIconTint(color(com.google.android.material.R.attr.colorOnSurface));
             toolbar.setNavigationContentDescription("Back to apps");
             toolbar.setNavigationOnClickListener(v -> showHome());
+            CollapsingToolbarLayout header = findViewById(R.id.flexible_header);
+            header.setTitle(app.title());
+            header.setSubtitle(app.packageName());
+            header.setContentDescription(app.title() + ", " + app.packageName());
+            scroll = findViewById(R.id.page_scroll);
+            content = findViewById(R.id.page_content);
+            renderApp(app);
+            ViewCompat.requestApplyInsets(root);
+            return;
         }
+        MaterialToolbar toolbar = new MaterialToolbar(this);
+        toolbar.setTitle("Gappuccino");
         root.addView(toolbar, new LinearLayout.LayoutParams(-1, dp(64)));
-        scroll = new ScrollView(this);
+        scroll = new NestedScrollView(this);
         scroll.setFillViewport(true);
         scroll.setClipToPadding(false);
         root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
         content = vertical();
         content.setPadding(dp(20), dp(12), dp(20), dp(28));
         scroll.addView(content);
-        if (app == null) renderHome(); else renderApp(app);
+        renderHome();
         ViewCompat.requestApplyInsets(root);
     }
 
@@ -159,58 +175,107 @@ public final class MainActivity extends ComponentActivity {
     }
 
     private void renderApp(TweakCatalog.App app) {
-        LinearLayout header = new LinearLayout(this);
-        header.setGravity(Gravity.CENTER_VERTICAL);
-        header.addView(icon(app), new LinearLayout.LayoutParams(dp(56), dp(56)));
-        TextView heading = text("Make it yours", 26, true);
-        LinearLayout.LayoutParams headingParams = new LinearLayout.LayoutParams(0, -2, 1);
-        headingParams.setMarginStart(dp(18));
-        header.addView(heading, headingParams);
-        content.addView(header);
+        TextView label = text("Tweaks", 14, false);
+        label.setTextAppearance(com.google.android.material.R.style.TextAppearance_Material3_LabelLarge);
+        label.setTextColor(color(androidx.appcompat.R.attr.colorPrimary));
+        label.setPadding(dp(16), dp(12), dp(16), dp(8));
+        ViewCompat.setAccessibilityHeading(label, true);
+        content.addView(label);
+        if (!isInstalled(app)) {
+            TextView notice = text("This app is not installed. You can still configure its tweaks.", 14, false);
+            notice.setPadding(dp(16), dp(8), dp(16), dp(16));
+            content.addView(notice);
+        }
+        for (int i = 0; i < app.tweaks().size(); i++) {
+            content.addView(tweakRow(app.tweaks().get(i)), new LinearLayout.LayoutParams(-1, -2));
+            if (i < app.tweaks().size() - 1) {
+                MaterialDivider divider = new MaterialDivider(this);
+                divider.setDividerInsetStart(dp(16));
+                divider.setDividerInsetEnd(dp(16));
+                content.addView(divider, new LinearLayout.LayoutParams(-1, -2));
+            }
+        }
         TextView note = text("Restart " + app.title() + " after changing a tweak.", 14, false);
+        note.setTextAppearance(com.google.android.material.R.style.TextAppearance_Material3_BodyMedium);
         note.setTextColor(color(com.google.android.material.R.attr.colorOnSurfaceVariant));
-        addWithGap(note, 16);
-        if (!isInstalled(app)) addWithGap(text("This app is not installed. You can still set its tweaks for later.", 14, false), 12);
-        for (TweakCatalog.Tweak tweak : app.tweaks()) addWithGap(tweakCard(tweak), 14);
+        note.setPadding(dp(16), dp(16), dp(16), dp(8));
+        content.addView(note);
         if (app.packageName().equals("com.google.android.dialer")) renderTestCalls();
     }
 
-    private MaterialCardView tweakCard(TweakCatalog.Tweak tweak) {
-        MaterialCardView card = card();
-        LinearLayout body = vertical();
-        body.setPadding(dp(18), dp(12), dp(18), dp(18));
-        MaterialSwitch toggle = new MaterialSwitch(this);
-        toggle.setText(tweak.title());
-        toggle.setTextSize(17);
-        toggle.setTypeface(toggle.getTypeface(), Typeface.BOLD);
-        toggle.setMinHeight(dp(56));
-        toggle.setChecked(prefs.getBoolean(tweak.key(), tweak.defaultEnabled()));
+    private LinearLayout tweakRow(TweakCatalog.Tweak tweak) {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(dp(16), dp(12), dp(16), dp(12));
+        row.setMinimumHeight(dp(88));
+        row.setBackgroundColor(color(com.google.android.material.R.attr.colorSurface));
+        android.util.TypedValue ripple = new android.util.TypedValue();
+        getTheme().resolveAttribute(android.R.attr.selectableItemBackground, ripple, true);
+        row.setForeground(getDrawable(ripple.resourceId));
+        LinearLayout labels = vertical();
+        TextView headline = text(tweak.title(), 16, false);
+        headline.setTextAppearance(com.google.android.material.R.style.TextAppearance_Material3_BodyLarge);
+        labels.addView(headline, new LinearLayout.LayoutParams(-1, -2));
         TextView description = text(tweak.description(), 14, false);
+        description.setTextAppearance(com.google.android.material.R.style.TextAppearance_Material3_BodyMedium);
         description.setTextColor(color(com.google.android.material.R.attr.colorOnSurfaceVariant));
-        body.addView(toggle, new LinearLayout.LayoutParams(-1, -2));
-        body.addView(description, new LinearLayout.LayoutParams(-1, -2));
-        card.addView(body);
+        LinearLayout.LayoutParams supporting = new LinearLayout.LayoutParams(-1, -2);
+        supporting.topMargin = dp(4);
+        labels.addView(description, supporting);
+        // The row is one accessible switch, rather than separate text and control stops.
+        labels.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
+        row.addView(labels, new LinearLayout.LayoutParams(0, -2, 1));
+        MaterialSwitch toggle = new MaterialSwitch(this);
+        toggle.setMinWidth(dp(48));
+        toggle.setMinHeight(dp(48));
+        toggle.setChecked(prefs.getBoolean(tweak.key(), tweak.defaultEnabled()));
+        toggle.setClickable(false);
+        toggle.setFocusable(false);
+        toggle.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        LinearLayout.LayoutParams trailing = new LinearLayout.LayoutParams(-2, dp(48));
+        trailing.setMarginStart(dp(16));
+        row.addView(toggle, trailing);
+        row.setClickable(true);
+        row.setFocusable(true);
+        row.setContentDescription(tweak.title() + ". " + tweak.description());
+        row.setAccessibilityDelegate(new View.AccessibilityDelegate() {
+            @Override public void onInitializeAccessibilityNodeInfo(View host, AccessibilityNodeInfo info) {
+                super.onInitializeAccessibilityNodeInfo(host, info);
+                info.setClassName("android.widget.Switch");
+                info.setCheckable(true);
+                info.setChecked(toggle.isChecked());
+            }
+        });
+        row.setOnClickListener(v -> toggle.setChecked(!toggle.isChecked()));
         toggle.setOnCheckedChangeListener((button, checked) -> {
+            row.sendAccessibilityEvent(android.view.accessibility.AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED);
             if (!tweak.key().equals("asi_smart_reply")) {
                 prefs.edit().putBoolean(tweak.key(), checked).apply();
                 return;
             }
             toggle.setEnabled(false);
+            row.setEnabled(false);
             new Thread(() -> {
                 try {
                     String message = SmartReplySetup.configure(this, checked);
                     prefs.edit().putBoolean(tweak.key(), checked).commit();
-                    runOnUiThread(() -> { toggle.setEnabled(true); Toast.makeText(this, message, Toast.LENGTH_LONG).show(); });
+                    runOnUiThread(() -> { toggle.setEnabled(true); row.setEnabled(true); Toast.makeText(this, message, Toast.LENGTH_LONG).show(); });
                 } catch (Exception error) {
                     runOnUiThread(() -> { render();
                         Toast.makeText(this, "Root setup failed: " + error.getMessage(), Toast.LENGTH_LONG).show(); });
                 }
             }, "SmartReplySetup").start();
         });
-        return card;
+        return row;
     }
 
     private void renderTestCalls() {
+        // Keep secondary tools visually separate from the settings list.
+        LinearLayout list = content;
+        content = vertical();
+        content.setPadding(dp(16), 0, dp(16), 0);
+        list.addView(content, new LinearLayout.LayoutParams(-1, -2));
         addWithGap(text("Test incoming calls", 20, true), 24);
         addWithGap(text("Use a local test call to check answering behavior without a carrier call.", 14, false), 8);
         MaterialButton account = new MaterialButton(this);
@@ -227,6 +292,7 @@ public final class MainActivity extends ComponentActivity {
             catch (RuntimeException error) { Toast.makeText(this, "Enable the Gappuccino test calling account first", Toast.LENGTH_LONG).show(); }
         });
         addWithGap(test, 4);
+        content = list;
     }
 
     private boolean isInstalled(TweakCatalog.App app) {
