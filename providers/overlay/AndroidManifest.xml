@@ -1,0 +1,5 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="io.github.hankaviator.gappuccino.providers" android:versionCode="1" android:versionName="1.0">
+    <uses-sdk android:minSdkVersion="35" android:targetSdkVersion="35" />
+    <overlay android:targetPackage="android" android:isStatic="true" android:priority="999" />
+    <application android:hasCode="false" android:label="Gappuccino Smart Reply providers" />
+</manifest>

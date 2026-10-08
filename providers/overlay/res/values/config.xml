@@ -1,0 +1,4 @@
+<resources>
+    <string name="config_defaultContentCaptureService" translatable="false">com.google.android.as/com.google.android.apps.miphone.aiai.app.AiAiContentCaptureService</string>
+    <string name="config_defaultAugmentedAutofillService" translatable="false">com.google.android.as/com.google.android.apps.miphone.aiai.app.AiAiAugmentedAutofillService</string>
+</resources>

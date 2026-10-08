@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.MANAGE_OWN_CALLS" />
+    <queries>
+        <package android:name="com.google.android.apps.photos" />
+        <package android:name="com.google.android.gm" />
+        <package android:name="com.google.android.apps.maps" />
+        <package android:name="com.google.android.dialer" />
+        <package android:name="com.google.android.googlequicksearchbox" />
+        <package android:name="com.google.android.as" />
+        <package android:name="com.android.vending" />
+    </queries>
+    <application android:name=".GappuccinoApplication" android:allowBackup="false"
+        android:icon="@drawable/ic_launcher" android:label="Gappuccino"
+        android:supportsRtl="true" android:theme="@style/Theme.Gappuccino">
+        <activity android:name=".MainActivity" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+                <category android:name="de.robv.android.xposed.category.MODULE_SETTINGS" />
+            </intent-filter>
+        </activity>
+        <service android:name="io.github.hankaviator.gdialertweak.testcall.TestConnectionService"
+            android:exported="true" android:permission="android.permission.BIND_TELECOM_CONNECTION_SERVICE">
+            <intent-filter><action android:name="android.telecom.ConnectionService" /></intent-filter>
+        </service>
+        <meta-data android:name="xposedmodule" android:value="true" />
+        <meta-data android:name="xposeddescription" android:value="Google app tweaks, organized by app" />
+        <meta-data android:name="xposedminversion" android:value="93" />
+        <meta-data android:name="xposedsharedprefs" android:value="true" />
+        <meta-data android:name="xposedscope" android:resource="@array/xposed_scope" />
+    </application>
+</manifest>

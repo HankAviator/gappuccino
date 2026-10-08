@@ -1,0 +1,6 @@
+id=gappuccino_asi
+name=Gappuccino Smart Reply providers
+version=1.0
+versionCode=1
+author=Han
+description=Managed by Gappuccino. ASI provider defaults on Android 15; keeps regular password autofill unchanged. Requires reboot when toggled.
