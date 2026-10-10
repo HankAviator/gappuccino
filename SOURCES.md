@@ -98,3 +98,9 @@ heading markers at pre-draw, rather than scanning Activity/Dialog trees after
 a delay. First-opening recordings and repeated menu checks cover Gmail and
 Play Store on the Xiaomi 14. Native Android pre-draw cancellation keeps layout
 edits out of the presented frame.
+
+The 0.1.11 filter additionally removes recognized Bento cards during native heading
+attachment or binding, before initial measurement. Photos' account menu otherwise
+animates the gap left by a card removed at pre-draw. This path uses the same bounded
+ancestor checks and generic heading matching; no Photos version or obfuscated class
+is targeted, and no app animations are disabled. Pre-draw remains a fallback.

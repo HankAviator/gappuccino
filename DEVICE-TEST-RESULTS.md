@@ -150,3 +150,23 @@ Two added tests protect Unicode heading recognition and empty/long-text rejectio
 after the classifier fast path was introduced. No subscriptions, memberships,
 messages or call settings were changed. Recordings and timing data remain under
 ignored `app/build/promotions/`.
+
+## Photos promotion spacing (0.1.11)
+
+October 10, 2026. Photos 7.95.0.989626323 on the Xiaomi 14 still animated the
+space below its storage card after pre-draw removal in 0.1.10. A baseline recording
+reproduced the shrinking gap even though the AI heading never appeared.
+
+Recognized Bento cards are now removed during heading attachment/binding, before
+initial measurement. The generic matcher and bounded ancestor checks remain;
+the change does not disable any Photos animation or add timed/full-window scans.
+Four recorded openings with this change showed final row spacing from the first
+visible menu frames, without the extra vertical collapse. The normal horizontal
+menu entrance remained. Account management, storage and backup controls stayed
+available, with the AI offer absent. Photo/account settings were not changed.
+
+The recordings cover this native Photos menu on this device; they do not establish
+behavior in every Google app or measure overall app performance. Other app menus
+were not rechecked for this change. Debug/release builds, lint (zero errors), all
+32 unit tests and release APK signature verification passed. The final 0.1.11
+release APK was installed and its first Photos menu opening was also recorded.

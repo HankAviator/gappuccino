@@ -52,6 +52,15 @@ final class ProfilePromotionHook {
                 return;
             }
             MARKERS.put(view, kind);
+            // Bento cards are already identifiable during attachment/binding. Remove
+            // them before the first measure can seed the menu's size animation.
+            // The pre-draw observer still handles late binding and unknown containers.
+            if ((hideAi && kind == ProfilePromotionMatcher.AI
+                    || hidePoints && kind == ProfilePromotionMatcher.POINTS)
+                    && hasBentoAncestor(view)) {
+                View target = removalTarget(view);
+                if (target != null) hide(target);
+            }
             observe(view.getRootView());
         } catch (Throwable error) { logScanError(error); }
     }
