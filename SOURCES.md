@@ -83,3 +83,12 @@ Read-only inspection of the existing LSPosed shared preference files confirmed:
 Old preference keys `hide_order_photos` and `maps_review_composer` are unused by
 the current implementations. Targeted conversation-log inspection confirmed the
 Maps review feature was explicitly reverted. They are not migrated.
+
+## Profile-menu promotion filtering
+
+The generic filter is based on the live Google account menu inspected on October
+10, 2026. Gmail exposes `og_bento_card_title`, a single-item RecyclerView stack and
+a CardView wrapper. Play Store uses the same hierarchy with obfuscated resource
+IDs; its clickable Manage your Google Account control supplies the menu anchor.
+Exact offer headings identify the AI plan and Play Points invitation, rather than
+obfuscated classes or app versions. Unknown menu layouts retain original behavior.

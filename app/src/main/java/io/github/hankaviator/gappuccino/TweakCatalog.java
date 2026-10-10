@@ -6,7 +6,7 @@ import java.util.List;
 public final class TweakCatalog {
     public record Tweak(String key, String title, String description, boolean defaultEnabled) {}
     public record App(String packageName, String title, List<Tweak> tweaks) {}
-    public static final List<App> APPS = List.of(
+    public static final List<App> APPS = withProfilePromotions(List.of(
         new App("com.google.android.apps.photos", "Google Photos", List.of(
             new Tweak("geo_intent_fix", "Open coordinates in maps", "Turn photo coordinates into map links with a visible pin.", true),
             new Tweak("reconcile_changes", "Reconcile device changes", "Apply recognized pending changes through Photos’ own review controls.", true),
@@ -32,7 +32,63 @@ public final class TweakCatalog {
         new App("com.android.vending", "Google Play Store", List.of(
             new Tweak("playstore_skip_disabled", "Skip apps with auto-update off", "Skip their approval screens during Update all. Detects compatible approval code automatically.", true),
             new Tweak("playstore_self_update_lock", "Block Play Store self-updates", "Prevent Play Store from replacing itself; other app updates continue normally.", false)))
-    );
+    ));
+    public static final String GENERIC = "gappuccino.generic";
+    public static final String PROFILE_AI = "profile_ai";
+    public static final java.util.Set<String> PROFILE_PACKAGES = java.util.Set.of(
+        "com.google.android.apps.photos",
+        "com.google.android.gm",
+        "com.google.android.apps.maps",
+        "com.google.android.dialer",
+        "com.google.android.googlequicksearchbox",
+        "com.android.vending",
+        "com.android.chrome",
+        "com.google.android.apps.books",
+        "com.google.android.apps.docs",
+        "com.google.android.apps.docs.editors.docs",
+        "com.google.android.apps.googlevoice",
+        "com.google.android.apps.magazines",
+        "com.google.android.apps.messaging",
+        "com.google.android.apps.walletnfcrel",
+        "com.google.android.calendar",
+        "com.google.android.contacts",
+        "com.google.android.youtube",
+        "com.google.android.apps.adm",
+        "com.google.android.apps.bard",
+        "com.google.android.apps.chromecast.app",
+        "com.google.android.apps.dynamite",
+        "com.google.android.apps.fitness",
+        "com.google.android.apps.tasks",
+        "com.google.android.apps.translate",
+        "com.google.android.keep",
+        "com.google.ar.lens",
+        "com.niksoftware.snapseed",
+        "com.google.android.inputmethod.latin");
+    public static boolean isHookTarget(String packageName) {
+        return PROFILE_PACKAGES.contains(packageName) || "com.google.android.as".equals(packageName);
+    }
+    /** Preserve a prior opt-out when replacing per-app switches with one shared switch. */
+    static boolean profileAiEnabled(java.util.Map<String, ?> values) {
+        Object shared = values.get(PROFILE_AI);
+        if (shared instanceof Boolean) return (Boolean) shared;
+        for (String pkg : PROFILE_PACKAGES)
+            if (Boolean.FALSE.equals(values.get("profile_ai_" + pkg))) return false;
+        return true;
+    }
+    private static List<App> withProfilePromotions(List<App> existing) {
+        java.util.ArrayList<App> result = new java.util.ArrayList<>();
+        result.add(new App(GENERIC, "Generic", List.of(new Tweak(PROFILE_AI,
+                "Hide Google AI plan promotion",
+                "Hide the Google AI plan offer in compatible profile menus across all covered Google apps. Account settings and subscriptions stay available.", true))));
+        for (App app : existing) {
+            java.util.ArrayList<Tweak> tweaks = new java.util.ArrayList<>(app.tweaks());
+            if (app.packageName().equals("com.android.vending"))
+                tweaks.add(new Tweak("playstore_profile_points", "Hide Play Points invitation",
+                        "Hide the invitation to join Play Points in the profile menu. Existing membership and points controls stay available.", true));
+            result.add(new App(app.packageName(), app.title(), List.copyOf(tweaks)));
+        }
+        return List.copyOf(result);
+    }
     public static App find(String packageName) {
         for (App app : APPS) if (app.packageName().equals(packageName)) return app;
         return null;

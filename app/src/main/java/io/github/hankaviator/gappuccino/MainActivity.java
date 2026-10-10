@@ -91,14 +91,14 @@ public final class MainActivity extends ComponentActivity {
             getLayoutInflater().inflate(R.layout.page_tweaks, root, true);
             MaterialToolbar toolbar = findViewById(R.id.page_toolbar);
             toolbar.setTitle(app.title());
-            toolbar.setSubtitle(app.packageName());
+            toolbar.setSubtitle(pageSubtitle(app));
             toolbar.setNavigationIconTint(color(com.google.android.material.R.attr.colorOnSurface));
             toolbar.setNavigationContentDescription("Back to apps");
             toolbar.setNavigationOnClickListener(v -> showHome());
             CollapsingToolbarLayout header = findViewById(R.id.flexible_header);
             header.setTitle(app.title());
-            header.setSubtitle(app.packageName());
-            header.setContentDescription(app.title() + ", " + app.packageName());
+            header.setSubtitle(pageSubtitle(app));
+            header.setContentDescription(app.title() + ", " + pageSubtitle(app));
             scroll = findViewById(R.id.page_scroll);
             content = findViewById(R.id.page_content);
             renderApp(app);
@@ -120,9 +120,9 @@ public final class MainActivity extends ComponentActivity {
     }
 
     private void renderHome() {
-        TextView title = text("Your Google apps", 30, true);
+        TextView title = text("Apps and shared tweaks", 30, true);
         content.addView(title);
-        TextView subtitle = text("Choose an app to customize its tweaks.", 16, false);
+        TextView subtitle = text("Choose an app or configure shared Google app tweaks.", 16, false);
         subtitle.setTextColor(color(com.google.android.material.R.attr.colorOnSurfaceVariant));
         addWithGap(subtitle, 8);
         int width = getResources().getConfiguration().screenWidthDp;
@@ -195,7 +195,7 @@ public final class MainActivity extends ComponentActivity {
                 content.addView(divider, new LinearLayout.LayoutParams(-1, -2));
             }
         }
-        TextView note = text("Restart " + app.title() + " after changing a tweak.", 14, false);
+        TextView note = text(app.packageName().equals(TweakCatalog.GENERIC) ? "Restart the affected Google apps after changing a shared tweak." : "Restart " + app.title() + " after changing a tweak.", 14, false);
         note.setTextAppearance(com.google.android.material.R.style.TextAppearance_Material3_BodyMedium);
         note.setTextColor(color(com.google.android.material.R.attr.colorOnSurfaceVariant));
         note.setPadding(dp(16), dp(16), dp(16), dp(8));
@@ -295,7 +295,11 @@ public final class MainActivity extends ComponentActivity {
         content = list;
     }
 
+    private String pageSubtitle(TweakCatalog.App app) {
+        return app.packageName().equals(TweakCatalog.GENERIC) ? "All covered Google apps" : app.packageName();
+    }
     private boolean isInstalled(TweakCatalog.App app) {
+        if (app.packageName().equals(TweakCatalog.GENERIC)) return true;
         try { getPackageManager().getApplicationInfo(app.packageName(), 0); return true; }
         catch (PackageManager.NameNotFoundException ignored) { return false; }
     }

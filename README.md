@@ -1,6 +1,6 @@
 # Gappuccino
 
-An LSPosed module with **18 independent tweaks across seven Google apps**.
+An LSPosed module for Google app tweaks and profile-menu promotion removal.
 Tap an app icon to configure its tweaks. Material 3 medium flexible headers show
 each app’s name and package, with accessible list switches and Android dynamic colors.
 
@@ -8,13 +8,14 @@ each app’s name and package, with accessible list switches and Android dynamic
 
 | App | Features |
 |---|---|
+| Google app profile menus | Hide Google AI plan offers in compatible account-menu cards; one shared switch under Generic |
 | Google Photos | Open photo coordinates in maps; reconcile device changes; skip trash confirmation; use TCP during HyperOS mobile boost |
 | Gmail | Hide sponsored emails in Promotions and Social |
 | Google Maps | Hide sponsored offers; prevent upside-down portrait |
 | Google Phone | Answer from notifications without leaving the current app; enable call recording; optionally silence recording disclosures |
 | Google Search | Native Circle to Search text-selection toolbar with smart actions |
 | Android System Intelligence | Multilingual smart selection; Smart Reply provider setup; reply-language fallback; optional diagnostics and experimental Telegram capture |
-| Google Play Store | Skip approval screens for apps with auto-update disabled; block Play Store self-updates |
+| Google Play Store | Hide the Play Points invitation; skip approval screens for apps with auto-update disabled; block Play Store self-updates |
 
 ## Setup
 
@@ -25,7 +26,10 @@ Requires **Android 12L or later**, root, and LSPosed. Smart Reply provider setup
 3. Disable overlapping tweaks from other modules.
 4. Restart the affected apps after changing settings, or reboot.
 
-The recommended scope contains only the seven Google apps above. No System Framework or Xiaomi app scope is required.
+The recommended scope includes Google consumer apps (including Chrome, Drive, Docs,
+YouTube, Gemini, Chat, Keep and Gboard) plus Android System Intelligence for Smart Reply.
+After updating, use **Check recommended** in LSPosed to enable newly added app scopes.
+No System Framework or Xiaomi app scope is required.
 
 ### Smart Reply
 
@@ -37,6 +41,16 @@ Suggestions depend on the messaging app, conversation language, and available mo
 WhatsApp is confirmed working. Official Telegram does not currently show suggested replies;
 its experimental capture switch is for diagnostics only. The display-language fallback
 uses English models for supported conversations and does not add Chinese reply models.
+
+### Profile-menu promotions
+
+**Generic → Hide Google AI plan promotion** controls all covered Google consumer
+apps. Play Store also
+has **Hide Play Points invitation**. These hide offers, without changing subscriptions
+or account membership. The current account-menu filter recognizes the English AI
+plan heading and English/Chinese Play Points invitation headings. Ordinary mentions
+and existing points controls remain available. Apps without a compatible card,
+including unfamiliar Compose layouts or offer wording, retain their original UI.
 
 ## Compatibility
 

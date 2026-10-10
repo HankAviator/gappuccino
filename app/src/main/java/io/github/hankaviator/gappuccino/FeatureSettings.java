@@ -16,8 +16,10 @@ public final class FeatureSettings {
     public static void ensureDefaults(Context context) {
         SharedPreferences prefs = open(context);
         SharedPreferences.Editor edit = prefs.edit();
+        if (!prefs.contains(TweakCatalog.PROFILE_AI))
+            edit.putBoolean(TweakCatalog.PROFILE_AI, TweakCatalog.profileAiEnabled(prefs.getAll()));
         for (TweakCatalog.App app : TweakCatalog.APPS) for (TweakCatalog.Tweak tweak : app.tweaks())
-            if (!prefs.contains(tweak.key())) edit.putBoolean(tweak.key(), tweak.defaultEnabled());
+            if (!tweak.key().equals(TweakCatalog.PROFILE_AI) && !prefs.contains(tweak.key())) edit.putBoolean(tweak.key(), tweak.defaultEnabled());
         edit.apply();
     }
 }

@@ -8,7 +8,12 @@ import de.robv.android.xposed.callbacks.XC_LoadPackage;
 /** Explicit allowlist: selecting another package in LSPosed never hooks it. */
 public final class HookEntry implements IXposedHookLoadPackage {
     @Override public void handleLoadPackage(XC_LoadPackage.LoadPackageParam load) {
-        if (TweakCatalog.find(load.packageName) == null) return;
+        if (!TweakCatalog.isHookTarget(load.packageName)) return;
+        if (load.packageName.equals(load.processName) && !load.packageName.equals("com.google.android.as")) {
+            boolean ai = enabled(TweakCatalog.PROFILE_AI);
+            boolean points = load.packageName.equals("com.android.vending") && enabled("playstore_profile_points");
+            if (ai || points) run("Profile promotions", () -> ProfilePromotionHook.install(ai, points));
+        }
         switch (load.packageName) {
             case "com.google.android.apps.photos":
                 run("Photos", () -> new io.github.hankaviator.phoset.PhoSetModule().handleLoadPackage(load));
@@ -45,6 +50,7 @@ public final class HookEntry implements IXposedHookLoadPackage {
         try {
             XSharedPreferences prefs = new XSharedPreferences(BuildConfig.APPLICATION_ID, FeatureSettings.FILE);
             prefs.reload();
+            if (key.equals(TweakCatalog.PROFILE_AI)) return TweakCatalog.profileAiEnabled(prefs.getAll());
             return prefs.getBoolean(key, TweakCatalog.defaultEnabled(key));
         } catch (Throwable error) {
             XposedBridge.log("Gappuccino: preferences unavailable for " + key + ": " + error);

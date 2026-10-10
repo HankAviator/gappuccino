@@ -92,3 +92,37 @@ Logs and snapshots are kept locally under the ignored app/build/device-test
 directory, including before-migration, after-migration, and final-state snapshots.
 The original individual APKs remain installed for rollback. Successful hook
 installation is recorded separately from proven feature behavior above.
+
+## Profile-menu promotions (0.1.9)
+
+October 10, 2026, Xiaomi 14 / Android 15. The update adds a shared Google AI plan
+promotion switch under Generic across 28 consumer app scopes and a separate Play Store
+Play Points invitation switch. The existing ASI scope remains for Smart Reply,
+for 29 recommended scopes total. LSPosed’s Check recommended UI enabled exactly
+these 29 scopes; a read-only database snapshot confirmed no extra package scope.
+
+Gmail: the AI plan card was hidden while Manage your Google Account and storage
+controls remained available. Play Store: the AI plan and Chinese Play Points
+invitation cards were hidden while account management, Manage apps & device,
+and Payments & subscriptions remained visible. Drive, newly added to scope:
+the AI card was hidden while account management remained visible. Logs confirmed
+card removal in all three processes; no account, subscription or membership
+changes were made. The remaining consumer apps were not individually tested.
+Apps without these offers or with unfamiliar layouts/wording retain original UI.
+
+Build, lint (zero errors), APK signature verification and 30 unit tests pass.
+The six new tests cover English/Chinese headings, punctuation, normalization,
+account anchors and exclusion of existing points/subscription controls and
+ordinary text mentions. Profile-menu evidence is under ignored
+`app/build/promotions/`; no personal account data is included in this report.
+
+The AI plan switch is grouped under **Generic**, with the subtitle All covered
+Google apps. Play Points remains under Play Store. Migration preserves a prior
+per-app opt-out by initially setting the shared switch off; an explicitly saved
+shared setting takes precedence. Four additional tests cover migration and scope
+separation. App scopes remain independent of the settings-page catalog.
+
+The final release APK was installed and the Generic page was visually checked
+on the Xiaomi 14. Its shared AI switch migrated on, and the app-name header,
+shared-app subtitle and restart guidance rendered correctly. No switches were
+changed during this page inspection.

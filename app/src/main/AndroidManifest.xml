@@ -9,6 +9,28 @@
         <package android:name="com.google.android.googlequicksearchbox" />
         <package android:name="com.google.android.as" />
         <package android:name="com.android.vending" />
+        <package android:name="com.android.chrome" />
+        <package android:name="com.google.android.apps.books" />
+        <package android:name="com.google.android.apps.docs" />
+        <package android:name="com.google.android.apps.docs.editors.docs" />
+        <package android:name="com.google.android.apps.googlevoice" />
+        <package android:name="com.google.android.apps.magazines" />
+        <package android:name="com.google.android.apps.messaging" />
+        <package android:name="com.google.android.apps.walletnfcrel" />
+        <package android:name="com.google.android.calendar" />
+        <package android:name="com.google.android.contacts" />
+        <package android:name="com.google.android.youtube" />
+        <package android:name="com.google.android.apps.adm" />
+        <package android:name="com.google.android.apps.bard" />
+        <package android:name="com.google.android.apps.chromecast.app" />
+        <package android:name="com.google.android.apps.dynamite" />
+        <package android:name="com.google.android.apps.fitness" />
+        <package android:name="com.google.android.apps.tasks" />
+        <package android:name="com.google.android.apps.translate" />
+        <package android:name="com.google.android.keep" />
+        <package android:name="com.google.ar.lens" />
+        <package android:name="com.niksoftware.snapseed" />
+        <package android:name="com.google.android.inputmethod.latin" />
     </queries>
     <application android:name=".GappuccinoApplication" android:allowBackup="false"
         android:icon="@drawable/ic_launcher" android:label="Gappuccino"
