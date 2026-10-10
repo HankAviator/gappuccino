@@ -49,7 +49,8 @@ apps. Play Store also
 has **Hide Play Points invitation**. These hide offers, without changing subscriptions
 or account membership. The current account-menu filter recognizes the English AI
 plan heading and English/Chinese Play Points invitation headings. Ordinary mentions
-and existing points controls remain available. Apps without a compatible card,
+and existing points controls remain available. Recognized cards are filtered before
+drawing, without delayed retries or full-window scans. Apps without a compatible card,
 including unfamiliar Compose layouts or offer wording, retain their original UI.
 
 ## Compatibility

@@ -92,3 +92,9 @@ a CardView wrapper. Play Store uses the same hierarchy with obfuscated resource
 IDs; its clickable Manage your Google Account control supplies the menu anchor.
 Exact offer headings identify the AI plan and Play Points invitation, rather than
 obfuscated classes or app versions. Unknown menu layouts retain original behavior.
+
+The 0.1.10 filter observes native TextView attachment/binding and checks cached
+heading markers at pre-draw, rather than scanning Activity/Dialog trees after
+a delay. First-opening recordings and repeated menu checks cover Gmail and
+Play Store on the Xiaomi 14. Native Android pre-draw cancellation keeps layout
+edits out of the presented frame.

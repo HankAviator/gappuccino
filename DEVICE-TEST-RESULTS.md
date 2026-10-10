@@ -126,3 +126,27 @@ The final release APK was installed and the Generic page was visually checked
 on the Xiaomi 14. Its shared AI switch migrated on, and the app-name header,
 shared-app subtitle and restart guidance rendered correctly. No switches were
 changed during this page inspection.
+
+## Promotion filtering before drawing (0.1.10)
+
+October 10, 2026. Replaced the post-layout debounce and timed retries with exact
+TextView heading tracking and a dirty-only pre-draw check. A removal cancels the
+current draw so the corrected layout settles before presentation. Unrelated UI
+text takes a short classification path; the filter never walks the whole window.
+Observers are removed when menus close or stop containing relevant headings,
+and hidden card dimensions are restored for reuse.
+
+Gmail and Play Store menu openings were screen-recorded. Sampled opening frames
+showed the menus without the AI offer; Play Store also omitted the Play Points
+invitation. Three repeat openings per app retained account controls and omitted
+the offers. Play Store retained Manage apps & device and Payments & subscriptions.
+Four Play Store openings each required three dirty pre-draw checks, totaling
+798, 1496, 999 and 1088 microseconds of filtering work respectively. These timings
+measure the filter only, not total app CPU, frame time, or Xposed callback costs.
+No broad performance benchmark or guarantee for untested app layouts is implied.
+
+Debug/release builds, lint (zero errors), signatures and all 32 unit tests pass.
+Two added tests protect Unicode heading recognition and empty/long-text rejection
+after the classifier fast path was introduced. No subscriptions, memberships,
+messages or call settings were changed. Recordings and timing data remain under
+ignored `app/build/promotions/`.

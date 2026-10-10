@@ -19,4 +19,14 @@ public class ProfilePromotionMatcherTest {
         assertTrue(ProfilePromotionMatcher.account("Manage your Google Account"));
         assertFalse(ProfilePromotionMatcher.ai(null)); assertFalse(ProfilePromotionMatcher.points(null));
     }
+    @Test public void fastPrefilterPreservesUnicodeHeadings() {
+        assertTrue(ProfilePromotionMatcher.ai("\u00a0Ｇｅｔ ａ Ｇｏｏｇｌｅ ＡＩ ｐｌａｎ"));
+        assertTrue(ProfilePromotionMatcher.ai("取得 Google AI 方案"));
+        assertTrue(ProfilePromotionMatcher.points("想加入 Play Points 计划？"));
+    }
+    @Test public void emptyAndLongUiTextHaveNoMarker() {
+        assertEquals(0, ProfilePromotionMatcher.kind(""));
+        assertEquals(0, ProfilePromotionMatcher.kind(" \u00a0"));
+        assertEquals(0, ProfilePromotionMatcher.kind("Get a Google AI plan".repeat(20)));
+    }
 }
