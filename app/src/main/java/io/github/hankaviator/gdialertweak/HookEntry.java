@@ -37,8 +37,7 @@ public final class HookEntry implements IXposedHookLoadPackage {
     private static final String EXTRA_NOTIFICATION_CONTENT = "InCallActivity.for_notification_content";
     private static final String EXTRA_MODULE_NOTIFICATION_CONTENT =
             "io.github.hankaviator.gdialertweak.NOTIFICATION_CONTENT";
-    private static volatile long suppressUntil;
-    private static volatile boolean hardSuppressInCallUi;
+    private static final InCallLaunchPolicy uiPolicy = new InCallLaunchPolicy();
     private static final Set<Activity> notificationAnswerActivities =
             Collections.newSetFromMap(new WeakHashMap<>());
     private static XSharedPreferences preferences;
@@ -68,12 +67,10 @@ public final class HookEntry implements IXposedHookLoadPackage {
                         } else if ("240.0.986973448-pixel".equals(version)) {
                             mapping = new Mapping("rve", "ahdi", "b", "ldt", "lcy");
                         }
-                        if (mapping != null) {
-                            hookReceiverOnlyNotificationAnswer(load.classLoader);
-                            hookNotificationContentMarker(load.classLoader);
-                        } else {
+                        if (mapping == null) {
                             log("version-specific hooks unavailable for Phone " + version);
                         }
+                        hookNotificationPendingIntents();
                         hookNotificationAnswer(load.classLoader);
                         hookInternalInCallActivityLaunch(load.classLoader);
                         hookInCallActivity(load.classLoader);
@@ -87,67 +84,39 @@ public final class HookEntry implements IXposedHookLoadPackage {
                 });
     }
 
-
-
-
-
-
-
-
-
-    private static void hookReceiverOnlyNotificationAnswer(ClassLoader loader) {
-        try {
-            // Google Phone 236: rcb.a(...) builds a receiver PendingIntent, while
-            // rcb.b(...) builds an InCallActivity PendingIntent unless gaming mode is on.
-            Class<?> buttonIntents = XposedHelpers.findClass(mapping.buttonIntents(), loader);
-            XposedBridge.hookAllMethods(buttonIntents, "b", new XC_MethodHook() {
-                @Override protected void beforeHookedMethod(MethodHookParam param) {
-                    if (!enabled(Prefs.KEEP_APP, true) || param.args.length != 2
-                            || !(param.args[0] instanceof Enum<?>)) return;
-                    String action = ((Enum<?>) param.args[0]).name();
-                    if (!isAnswerEnum(action)) return;
-                    PendingIntent receiverPendingIntent = (PendingIntent) XposedHelpers.callMethod(
-                            param.thisObject, "a", param.args[0], param.args[1]);
-                    param.setResult(receiverPendingIntent);
-                    log("using receiver-only notification action for " + action);
+    private static void hookNotificationPendingIntents() {
+        // Framework factories are stable across Phone's obfuscated implementations.
+        XposedBridge.hookAllMethods(PendingIntent.class, "getActivity", new XC_MethodHook() {
+            @Override protected void beforeHookedMethod(MethodHookParam param) {
+                if (param.args.length < 4 || !(param.args[0] instanceof Context)
+                        || !(param.args[2] instanceof Intent)) return;
+                Intent intent = (Intent) param.args[2];
+                ComponentName component = intent.getComponent();
+                if (component == null || !DIALER.equals(component.getPackageName())
+                        || !INCALL_ACTIVITY.equals(component.getClassName())) return;
+                if (isAnswerAction(intent)) {
+                    Context context = (Context) param.args[0];
+                    if (!enabled(Prefs.KEEP_APP, true) || shouldShowInCallUi(context)) return;
+                    Intent receiver = new Intent(intent).setComponent(new ComponentName(DIALER, RECEIVER));
+                    param.setResult(PendingIntent.getBroadcast(context, (Integer) param.args[1],
+                            receiver, (Integer) param.args[3]));
+                    log("using receiver-only notification answer via framework factory");
+                } else if (Intent.ACTION_MAIN.equals(intent.getAction())
+                        && !intent.getBooleanExtra(EXTRA_NOTIFICATION_BUTTON, false)) {
+                    intent.putExtra(EXTRA_MODULE_NOTIFICATION_CONTENT, true);
                 }
-            });
-            log("receiver-only notification answer hook installed");
-        } catch (Throwable error) {
-            log("receiver-only notification answer hook unavailable", error);
-        }
+            }
+        });
+        log("version-independent notification pending-intent hook installed");
     }
 
-    private static boolean isAnswerEnum(String action) {
-        return "ANSWER".equals(action) || "ANSWER_VIDEO".equals(action);
-    }
 
-    private static void hookNotificationContentMarker(ClassLoader loader) {
-        try {
-            // Google Phone's txk content-intent provider calls aghx.a with request code 0,
-            // but Phone 236 leaves for_notification_content=false. Use a module-private
-            // marker: Google's own flag enters a handler that requires InCallActivity.callId.
-            Class<?> pendingIntents = XposedHelpers.findClass(mapping.pendingIntents(), loader);
-            XposedBridge.hookAllMethods(pendingIntents, mapping.pendingMethod(), new XC_MethodHook() {
-                @Override protected void beforeHookedMethod(MethodHookParam param) {
-                    if (param.args.length != 4 || !(param.args[1] instanceof Integer)
-                            || ((Integer) param.args[1]) != 0
-                            || !(param.args[2] instanceof Intent)) return;
-                    Intent intent = (Intent) param.args[2];
-                    ComponentName component = intent.getComponent();
-                    if (component != null && DIALER.equals(component.getPackageName())
-                            && INCALL_ACTIVITY.equals(component.getClassName())
-                            && Intent.ACTION_MAIN.equals(intent.getAction())) {
-                        intent.putExtra(EXTRA_MODULE_NOTIFICATION_CONTENT, true);
-                        log("marked ongoing-call notification content intent");
-                    }
-                }
-            });
-            log("notification content marker hook installed");
-        } catch (Throwable error) {
-            log("notification content marker hook unavailable", error);
-        }
-    }
+
+
+
+
+
+
 
     private static boolean enabled(String key, boolean defaultValue) {
         preferences.reload();
@@ -164,8 +133,7 @@ public final class HookEntry implements IXposedHookLoadPackage {
                     Context context = (Context) param.args[0];
                     Intent intent = (Intent) param.args[1];
                     if (!isAnswerAction(intent) || shouldShowInCallUi(context)) return;
-                    suppressUntil = SystemClock.elapsedRealtime() + 8_000L;
-                    hardSuppressInCallUi = true;
+                    uiPolicy.answered(SystemClock.elapsedRealtime());
                     log("receiver answer detected; internal in-call activity launches will be blocked");
                 }
             });
@@ -213,7 +181,7 @@ public final class HookEntry implements IXposedHookLoadPackage {
             Class<?> instrumentation = XposedHelpers.findClass("android.app.Instrumentation", loader);
             XposedBridge.hookAllMethods(instrumentation, "execStartActivity", new XC_MethodHook() {
                 @Override protected void beforeHookedMethod(MethodHookParam param) {
-                    if (!hardSuppressInCallUi || !enabled(Prefs.KEEP_APP, true)) return;
+                    if (!uiPolicy.suppress(SystemClock.elapsedRealtime()) || !enabled(Prefs.KEEP_APP, true)) return;
                     for (Object argument : param.args) {
                         if (!(argument instanceof Intent)) continue;
                         Intent intent = (Intent) argument;
@@ -257,19 +225,22 @@ public final class HookEntry implements IXposedHookLoadPackage {
                             ? (Intent) param.args[0] : activity.getIntent();
                     if (isExplicitUiLaunch(intent)) {
                         notificationAnswerActivities.remove(activity);
-                        hardSuppressInCallUi = false;
-                        log("explicit in-call UI launch; hard suppression cleared");
+                        uiPolicy.explicitOpen();
+                        if (param.args.length > 0 && param.args[0] instanceof Intent)
+                            activity.setIntent(intent);
+                        log("explicit in-call UI launch; answer suppression cleared");
                         return;
                     }
                     if (isNotificationAnswerLaunch(intent)) {
                         notificationAnswerActivities.add(activity);
+                        uiPolicy.answered(SystemClock.elapsedRealtime());
                         log("notification answer activity launch detected");
                     }
                 }
 
                 @Override protected void afterHookedMethod(MethodHookParam param) {
                     Activity activity = (Activity) param.thisObject;
-                    if (notificationAnswerActivities.contains(activity) || hardSuppressInCallUi) {
+                    if (uiPolicy.suppress(SystemClock.elapsedRealtime())) {
                         hardSuppressActivity(activity, "activity launch");
                     }
                 }
@@ -278,12 +249,11 @@ public final class HookEntry implements IXposedHookLoadPackage {
             XposedBridge.hookAllMethods(activityClass, "onNewIntent", rememberAnswerLaunch);
             XposedBridge.hookAllMethods(activityClass, "onResume", new XC_MethodHook() {
                 @Override protected void afterHookedMethod(MethodHookParam param) {
-                    long deadline = suppressUntil;
                     Activity activity = (Activity) param.thisObject;
                     if (!enabled(Prefs.KEEP_APP, true)) return;
 
                     Intent intent = activity.getIntent();
-                    boolean explicitlyMarked = deadline != 0 && SystemClock.elapsedRealtime() <= deadline;
+                    boolean explicitlyMarked = uiPolicy.suppress(SystemClock.elapsedRealtime());
                     boolean answerLaunch = notificationAnswerActivities.contains(activity)
                             || isNotificationAnswerLaunch(intent);
                     boolean fullScreen = intent != null && intent.getBooleanExtra(EXTRA_FULL_SCREEN, false);
@@ -311,16 +281,16 @@ public final class HookEntry implements IXposedHookLoadPackage {
                     if (isKeyguardLocked(activity) || fullScreen || outgoing || notificationContent
                             || (previousPackage != null && isHomePackage(activity, previousPackage))) {
                         notificationAnswerActivities.remove(activity);
-                        hardSuppressInCallUi = false;
+                        uiPolicy.explicitOpen();
                         return;
                     }
-                    if (!answerLaunch && !explicitlyMarked && !hardSuppressInCallUi) return;
+                    if (!explicitlyMarked) return;
                     hardSuppressActivity(activity, "resume");
                 }
             });
             XposedBridge.hookAllMethods(activityClass, "onWindowFocusChanged", new XC_MethodHook() {
                 @Override protected void afterHookedMethod(MethodHookParam param) {
-                    if (Boolean.TRUE.equals(param.args[0]) && hardSuppressInCallUi) {
+                    if (Boolean.TRUE.equals(param.args[0]) && uiPolicy.suppress(SystemClock.elapsedRealtime())) {
                         hardSuppressActivity((Activity) param.thisObject, "window focus");
                     }
                 }
@@ -335,7 +305,7 @@ public final class HookEntry implements IXposedHookLoadPackage {
         String action = intent.getAction();
         return (action != null && action.startsWith(
                 "com.android.dialer.incall.statusbarnotification.buttonintentANSWER"))
-                || intent.getBooleanExtra(EXTRA_NOTIFICATION_BUTTON, false);
+                || (intent.getBooleanExtra(EXTRA_NOTIFICATION_BUTTON, false) && isAnswerAction(intent));
     }
 
     private static boolean isExplicitUiLaunch(Intent intent) {
@@ -348,17 +318,15 @@ public final class HookEntry implements IXposedHookLoadPackage {
     private static void hardSuppressActivity(Activity activity, String phase) {
         if (!enabled(Prefs.KEEP_APP, true) || isKeyguardLocked(activity)) {
             notificationAnswerActivities.remove(activity);
-            hardSuppressInCallUi = false;
+            uiPolicy.explicitOpen();
             return;
         }
         String previousPackage = taskBehindDialer(activity);
         if (previousPackage == null || isHomePackage(activity, previousPackage)) {
             notificationAnswerActivities.remove(activity);
-            hardSuppressInCallUi = false;
+            uiPolicy.explicitOpen();
             return;
         }
-        hardSuppressInCallUi = true;
-        suppressUntil = 0;
         if (!activity.isFinishing() && activity.moveTaskToBack(true)) {
             activity.overridePendingTransition(0, 0);
             log("hard-backgrounded in-call task during " + phase + "; returning to "

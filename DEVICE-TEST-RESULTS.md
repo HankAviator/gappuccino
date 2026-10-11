@@ -170,3 +170,69 @@ behavior in every Google app or measure overall app performance. Other app menus
 were not rechecked for this change. Debug/release builds, lint (zero errors), all
 32 unit tests and release APK signature verification passed. The final 0.1.11
 release APK was installed and its first Photos menu opening was also recorded.
+
+## Maps selected-place gesture investigation
+
+October 11, 2026. Maps 26.41.00.993332563 on the Xiaomi 14, Gappuccino 0.1.11.
+Search for coffee in London, select a place from the results, and drag the place
+detail panel down. The visible map then ignored a horizontal pan gesture. Merely
+collapsing the results list did not reproduce the problem. The process remained
+alive and the Android input dispatcher reported the Maps window as responsive;
+this was a map-interaction failure, not evidence of a process crash.
+
+Controlled comparisons, with Maps restarted after setting/scope changes:
+
+| Configuration | Selected-place map pan |
+| --- | --- |
+| Generic enabled, profile menu opened/closed first | Unresponsive (Prufrock Coffee) |
+| Generic disabled | Unresponsive (Omotesando Koffee) |
+| Generic and Maps sponsored-offer removal disabled | Unresponsive (Omotesando Koffee) |
+| Generic and Maps rotation protection disabled | Unresponsive (Omotesando Koffee) |
+| Gappuccino removed from Maps' LSPosed scope | Unresponsive (Omotesando Koffee) |
+
+The last comparison verified the missing Maps scope in a read-only LSPosed database
+snapshot before restarting Maps. The standalone GreatGadsbye module was disabled.
+Map viewport crops before/after the same pan gesture were pixel-identical in the
+Generic-off, sponsored-off, rotation-off and unscoped comparisons. With the results
+list shown instead of a selected-place panel, a pan visibly moved the map.
+
+These results exclude Gappuccino's hooks as necessary for this reproduced failure.
+They do not distinguish a Maps bug from other device/framework behavior. No module
+code was changed on this evidence. All LSPosed scopes were restored exactly to the
+original snapshot; Maps sponsored-offer removal and rotation protection were
+restored on, and the user's Generic setting remains off. Diagnostic captures remain
+under ignored `app/build/promotions/`; no messages, calls or navigation were started.
+
+## Phone notification UI routing (0.1.12)
+
+October 11, 2026. Google Phone 241.0.991235506-pixel, Xiaomi 14. The old in-call
+suppression flag could persist indefinitely after a notification answer, while
+notification-content recognition depended on mappings for older Phone builds.
+
+The filter now intercepts Android's stable PendingIntent activity factory for
+Google Phone's in-call component. Recognized Answer actions use the existing
+Phone broadcast receiver; normal notification content intents carry a private
+explicit-open marker. An explicit open clears suppression and updates the
+activity's intent on reuse. Automatic launch suppression expires after eight
+seconds instead of remaining active indefinitely. Other notification buttons
+are not classified as Answer solely because they carry the notification-button
+flag. Lock-screen/full-screen and outgoing-call exceptions remain.
+
+Local Telecom test calls verified Answer retained the module settings screen,
+the ringing notification body opened Google's call screen, and the connected
+notification body reopened it. A second answer followed by a body tap about
+1.5 seconds later verified explicit opening during the suppression window.
+The call screen remained visible afterward. These calls use the existing local
+test connection service (5550100), with no carrier call, real audio or recording
+test. Every test call was ended. Stay in the current app was enabled for this
+requested behavior; Generic promotion removal remained off.
+
+Four policy tests cover unrelated launches, timeout, immediate explicit opening
+and a subsequent answer. Capture/log evidence is under ignored
+`app/build/promotions/`; notification contents are not published.
+
+The final 0.1.12 release APK was installed through USB ADB and the Answer/immediate
+notification-body sequence passed again. The call screen stayed in the foreground
+until the test call was ended. Debug/release builds, all 36 unit tests, lint (zero
+errors) and release signature verification passed. Carrier-call behavior and
+other Phone versions were not tested in this run.

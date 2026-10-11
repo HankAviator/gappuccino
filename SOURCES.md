@@ -84,6 +84,15 @@ Old preference keys `hide_order_photos` and `maps_review_composer` are unused by
 the current implementations. Targeted conversation-log inspection confirmed the
 Maps review feature was explicitly reverted. They are not migrated.
 
+## Phone notification routing
+
+Phone notification routing in 0.1.12 no longer uses the old obfuscated pending-intent
+mappings. It hooks Android PendingIntent.getActivity for the stable Google Phone
+in-call component, distinguishes Answer actions from notification content, and
+uses a private marker for explicit openings. The answer-transition state expires
+and is cleared on explicit launch, including activity reuse through onNewIntent.
+Local Telecom calls validated this against Phone 241.0.991235506-pixel.
+
 ## Profile-menu promotion filtering
 
 The generic filter is based on the live Google account menu inspected on October

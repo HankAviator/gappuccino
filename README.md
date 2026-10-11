@@ -58,7 +58,7 @@ including unfamiliar Compose layouts or offer wording, retain their original UI.
 ## Compatibility
 
 - Google Search, Play Store approval skipping, and Phone disclosure suppression discover compatible implementations automatically. Unsupported implementations retain their original behavior.
-- Phone recording eligibility and notification routing currently support `236.0.969488611-pixel` and `240.0.986973448-pixel`. HyperOS's separate call UI may still appear.
+- Phone notification routing uses stable Android pending-intent factories: Answer can stay in the current app, while tapping the notification opens the call screen. Recording eligibility currently supports `236.0.969488611-pixel` and `240.0.986973448-pixel`. HyperOS's separate call UI may still appear.
 - Recording disclosure suppression defaults off; actual call audio has not been verified.
 - Smart Reply language fallback and experimental Telegram capture currently support ASI V41.
 - Photos TCP compatibility applies only to new connections while HyperOS mobile boost is enabled. Photos backup restrictions still apply.
