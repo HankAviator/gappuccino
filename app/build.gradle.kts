@@ -1,14 +1,14 @@
 plugins { id("com.android.application") }
 android {
     namespace = "io.github.hankaviator.gappuccino"
-    compileSdk = 35
+    compileSdk = 37
     buildFeatures { buildConfig = true }
     defaultConfig {
         applicationId = "io.github.hankaviator.gappuccino"
         minSdk = 32
-        targetSdk = 35
-        versionCode = 13
-        versionName = "0.1.12"
+        targetSdk = 37
+        versionCode = 18
+        versionName = "0.2.2"
     }
     buildTypes {
         release { isMinifyEnabled = false; signingConfig = signingConfigs.getByName("debug") }
@@ -20,7 +20,9 @@ android {
 }
 dependencies {
     implementation("com.google.android.material:material:1.14.0")
-    compileOnly("de.robv.android.xposed:api:82")
+    compileOnly("io.github.libxposed:api:102.0.0")
+    implementation("io.github.libxposed:service:102.0.0")
+    testImplementation("io.github.libxposed:api:102.0.0")
     implementation("org.luckypray:dexkit:2.3.0")
     implementation("org.smali:dexlib2:2.5.2")
     testImplementation("junit:junit:4.13.2")

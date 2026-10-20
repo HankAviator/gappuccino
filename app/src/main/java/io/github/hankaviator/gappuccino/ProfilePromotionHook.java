@@ -1,5 +1,8 @@
 package io.github.hankaviator.gappuccino;
 
+import io.github.hankaviator.gappuccino.runtime.*;
+
+
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewParent;
@@ -11,39 +14,66 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 import java.util.WeakHashMap;
-import de.robv.android.xposed.XC_MethodHook;
-import de.robv.android.xposed.XposedBridge;
-import de.robv.android.xposed.XposedHelpers;
-
 /** Version-independent, window-local filtering of Google's account-menu offers. */
 final class ProfilePromotionHook {
     private static final Map<View, Saved> HIDDEN = new WeakHashMap<>();
     private static final Map<TextView, Integer> MARKERS = new WeakHashMap<>();
     private static final Map<View, Observer> OBSERVED = new WeakHashMap<>();
     private static boolean hideAi, hidePoints;
+    private static volatile boolean accepting = true;
+
+    /** Retire only with no attached menu observers or hidden cards to hand over. */
+    static boolean prepareForReload() {
+        if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) return retireOnMain();
+        android.os.Handler main = new android.os.Handler(android.os.Looper.getMainLooper());
+        Object lock = new Object();
+        boolean[] completed = {false}, cancelled = {false}, accepted = {false};
+        java.util.concurrent.CountDownLatch done = new java.util.concurrent.CountDownLatch(1);
+        Runnable task = () -> {
+            synchronized (lock) {
+                if (cancelled[0]) return;
+                accepted[0] = retireOnMain();
+                completed[0] = true;
+                done.countDown();
+            }
+        };
+        if (!main.post(task)) return false;
+        try { done.await(3, java.util.concurrent.TimeUnit.SECONDS); }
+        catch (InterruptedException error) { Thread.currentThread().interrupt(); }
+        synchronized (lock) {
+            if (!completed[0]) { cancelled[0] = true; main.removeCallbacks(task); return false; }
+            return accepted[0];
+        }
+    }
+    private static boolean retireOnMain() {
+        if (!OBSERVED.isEmpty() || !HIDDEN.isEmpty()) return false;
+        accepting = false;
+        MARKERS.clear();
+        return true;
+    }
 
     static void install(boolean ai, boolean points) {
         hideAi = ai; hidePoints = points;
         // Track only exact headings. No activity-wide tree walks or delayed scans.
-        XposedBridge.hookAllMethods(TextView.class, "onAttachedToWindow", new XC_MethodHook() {
+        HookRuntime.hookAllMethods(TextView.class, "onAttachedToWindow", new Callback() {
             @Override protected void afterHookedMethod(MethodHookParam param) { inspect((TextView) param.thisObject); }
         });
-        XposedHelpers.findAndHookMethod(TextView.class, "setText", CharSequence.class,
-                TextView.BufferType.class, new XC_MethodHook() {
+        Reflection.findAndHookMethod(TextView.class, "setText", CharSequence.class,
+                TextView.BufferType.class, new Callback() {
             @Override protected void afterHookedMethod(MethodHookParam param) { inspect((TextView) param.thisObject); }
         });
-        XposedBridge.hookAllMethods(TextView.class, "onDetachedFromWindow", new XC_MethodHook() {
+        HookRuntime.hookAllMethods(TextView.class, "onDetachedFromWindow", new Callback() {
             @Override protected void beforeHookedMethod(MethodHookParam param) {
                 TextView view = (TextView) param.thisObject;
                 if (MARKERS.containsKey(view)) markDirty(view.getRootView());
             }
         });
-        XposedBridge.log("Gappuccino: pre-draw profile promotion filtering installed");
+        HookRuntime.log("Gappuccino: pre-draw profile promotion filtering installed");
     }
 
     private static void inspect(TextView view) {
         // Google binds native UI on the main thread. Ignore unexpected background setters.
-        if (android.os.Looper.myLooper() != android.os.Looper.getMainLooper() || !view.isAttachedToWindow()) return;
+        if (!accepting || android.os.Looper.myLooper() != android.os.Looper.getMainLooper() || !view.isAttachedToWindow()) return;
         try {
             int kind = ProfilePromotionMatcher.kind(view.getText());
             Integer previous = MARKERS.get(view);
@@ -80,7 +110,7 @@ final class ProfilePromotionHook {
         if (observer != null) observer.dirty = true;
     }
     private static void logScanError(Throwable error) {
-        XposedBridge.log("Gappuccino: profile promotion scan unavailable: " + error.getClass().getSimpleName());
+        HookRuntime.log("Gappuccino: profile promotion scan unavailable: " + error.getClass().getSimpleName());
     }
 
     private static final class Observer implements ViewTreeObserver.OnGlobalLayoutListener,
@@ -122,7 +152,7 @@ final class ProfilePromotionHook {
             }
             view.removeOnAttachStateChangeListener(this);
             OBSERVED.remove(view);
-            XposedBridge.log("Gappuccino: profile pre-draw passes=" + passes + ", scan_us=" + scanNanos / 1000);
+            HookRuntime.log("Gappuccino: profile pre-draw passes=" + passes + ", scan_us=" + scanNanos / 1000);
         }
     }
     private record ScanResult(boolean changed, boolean hasMarkers) {}
@@ -210,7 +240,7 @@ final class ProfilePromotionHook {
         if (!HIDDEN.containsKey(view)) {
             ViewGroup.MarginLayoutParams margins = params instanceof ViewGroup.MarginLayoutParams ? (ViewGroup.MarginLayoutParams) params : null;
             HIDDEN.put(view, new Saved(view.getVisibility(), params.height, margins == null ? 0 : margins.topMargin, margins == null ? 0 : margins.bottomMargin));
-            XposedBridge.log("Gappuccino: hid profile promotion card");
+            HookRuntime.log("Gappuccino: hid profile promotion card");
         }
         if (view.getVisibility() != View.GONE || params.height != 0) {
             params.height = 0;

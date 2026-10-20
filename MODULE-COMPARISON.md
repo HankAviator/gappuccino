@@ -1,5 +1,8 @@
 # Custom Xposed module comparison
 
+Historical pre-consolidation inventory; see README.md for the current feature set.
+ASI integration was removed from Gappuccino in 0.2.2.
+
 Inspected 2026-10-08 on Xiaomi 14 (houji), Android 15, via USB ADB.
 
 Evidence: installed package metadata, a local snapshot of LSPosed configuration including its WAL, local project files, and targeted searches of local Codex conversation logs. Enabled means configured enabled in LSPosed; this does not prove each hook currently works.

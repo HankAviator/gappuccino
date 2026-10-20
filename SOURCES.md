@@ -12,7 +12,6 @@ only one APK and one Xposed entry point. Preference readers now use
 | GDialer Tweak 0.11.0 | `../gdialer-tweak` | Google Phone hooks and local test-call tools; Xiaomi InCallUI hooks removed; recording default matches the inspected phone |
 | DualPathVPN 1.0.19 | `../DualPathVPN` | Only PhotosTransportHook; gated by its own switch and the native boost setting |
 | Circle Native Menu | `D:/codex/2026-10-07/goo/work/cts-native` | Existing toolbar behavior; generic Lens discovery replaces the original fixed mapping |
-| ASI Multilingual | `D:/codex/2026-10-07/d/work/asi-multilingual` | Existing classifier fallback, with a startup switch |
 | Play Store Skip Disabled | `D:/codex/2026-10-08/dis/work/module` | Existing skip behavior; generic approval-state discovery replaces the original fixed mapping |
 | Play Store Self Update Lock 1.1 | `D:/codex/2026-09-15/hello-so-recently-i-noticed-my/work/PlayStoreSelfUpdateLock` | Existing session rejection hook, disabled by default |
 
@@ -48,6 +47,14 @@ original skip-before-render behavior without fixed obfuscated names or a version
 guard. The public MultiInstallActivity component and semantic Bundle keys remain
 required. Missing or ambiguous matches retain the original approval flow.
 
+Play Store 53.5.48 saves a defensive `new ArrayList<>(pendingList)` rather than
+the pending field itself. In 0.1.13, saved-state discovery follows the standard
+ArrayList(Collection) constructor back to the original field, including DEX
+range-invoke forms. Other constructors are not treated as copies. Offline audits
+resolve both this build and the prior reference APK without fixed field names.
+The inspected 53.5.48 base APK SHA-256 is
+`99e272eb43df794fb96c5c60ca5dfc0b7b96b16465e120b00eda374c559ea272`.
+
 Offline audits checked both the earlier cached Google APK and a fresh pull of the
 installed Google APK. Their obfuscated classes differ: the generic rules found
 `drac`/`dutp.ad` in the earlier APK and `drti`/`dvmz.ag` in the installed APK,
@@ -59,15 +66,6 @@ matched the installed APK:
 `18c499981131e49964775271f9749a2fa1a5580550672a16215146290fe00f5c`.
 This verifies the inspected implementations; future structural changes can still
 require revised discovery rules.
-
-Smart Reply provider resources and initial setup requirements came from
-`D:/codex/2026-10-07/goo/work/smart-reply`. The consolidated APK now owns their
-replacement under `providers/` and `app/src/main/assets/providers/`; the older
-Magisk provider setup is disabled. The locale and diagnostic mappings were
-checked against the actual installed ASI V41 APK, whose SHA-256 matched the
-previously decompiled `D:/codex/2026-10-07/d/work/asi-update/android15-oem.apk`:
-`8c9013114bb336f35907bb41b276e57614e62c2e94d3f1f79d74d93b274777d8`.
-Version-specific mappings are guarded to that ASI version name.
 
 ## Initial settings evidence
 
@@ -86,12 +84,59 @@ Maps review feature was explicitly reverted. They are not migrated.
 
 ## Phone notification routing
 
+In 0.1.14, answering no longer depends on HyperOS ProcessManager foreground
+information or restricted ActivityManager task history. Android 16 on the test
+phone denies that access. The notification's Answer action supplies the routing
+signal, while keyguard/full-screen and explicit-open exceptions remain.
+
 Phone notification routing in 0.1.12 no longer uses the old obfuscated pending-intent
 mappings. It hooks Android PendingIntent.getActivity for the stable Google Phone
 in-call component, distinguishes Answer actions from notification content, and
 uses a private marker for explicit openings. The answer-transition state expires
 and is cleared on explicit launch, including activity reuse through onNewIntent.
 Local Telecom calls validated this against Phone 241.0.991235506-pixel.
+
+## Modern LSPosed runtime
+
+The runtime uses [libxposed API 102](https://github.com/libxposed/api) and
+[service 102](https://github.com/libxposed/service). Registration is in
+`META-INF/xposed`; no legacy Xposed entry point or framework classes are bundled.
+Package-ready callbacks install hooks against the app's final class loader.
+Interceptor chains preserve each recipe's before/after behavior and original
+exceptions. Stable per-interceptor IDs prevent duplicate registrations on the
+same method. The Play Store self-update block explicitly uses passthrough
+exception mode so its intended IOException reaches the downloader.
+
+The settings app publishes private preferences through the framework service.
+Target processes use read-only remote preferences. A one-time root import reads
+only this module's legacy randomized preference directory. Scope management is
+left to LSPosed's Dynamic scope management UI. Automatic hot reload is limited to
+generic-only main processes, derived from the covered package allowlist and absence
+of an app-specific tweak page. Retirement checks run on the main thread; any
+profile observer or hidden card vetoes reload. Otherwise the old filter stops
+accepting work and clears its markers. Only package/process strings are handed to
+the new generation, which reinstalls the filter using stable hook IDs and removes
+old handles. App-specific hooks, auxiliary processes and busy UI threads retain
+their restart requirement. No native libraries or workers are loaded by this
+supported reload path.
+
+## Keep confirmation and Fit period entries
+
+Keep confirmation discovery uses dexlib2 to locate the dialog-fragment argument
+contract (`_requestCode`, `_positiveTextId`, `_displayOptions`) and its Bundle field.
+Only `request_trash_note` and `confirm_trash_notes` dialogs invoke the app's normal
+positive button automatically. The callback retains Keep's own trash/undo behavior.
+Shared-note requests, permanent deletion, label deletion and reminder choices are
+not matched. This was inspected and tested against Keep 5.26.411.02.90; unknown
+contracts retain the original dialog.
+
+Fit's native entries are recognized by localized resource values for period,
+cycle tracking, add-period and menstruation labels. Matching buttons or their
+nearest clickable row are hidden during text binding/attachment, with at most
+eight ancestor checks and no full-window scans. Dimensions are restored for
+detached or rebound views. This changes UI only, independent of profile gender;
+profile details, consent and health records are untouched. Fit
+2026.08.27.00.arm64-v8a.release was inspected and its Browse category tested.
 
 ## Profile-menu promotion filtering
 

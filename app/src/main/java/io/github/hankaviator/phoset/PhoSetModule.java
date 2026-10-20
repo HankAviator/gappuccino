@@ -1,14 +1,14 @@
 package io.github.hankaviator.phoset;
 
-import de.robv.android.xposed.IXposedHookLoadPackage;
-import de.robv.android.xposed.callbacks.XC_LoadPackage;
+import io.github.hankaviator.gappuccino.runtime.*;
+
 
 /** LSPosed entry point, scoped exclusively to Google Photos. */
-public final class PhoSetModule implements IXposedHookLoadPackage {
+public final class PhoSetModule implements FeatureInstaller {
     private static final String PHOTOS_PACKAGE = "com.google.android.apps.photos";
 
     @Override
-    public void handleLoadPackage(XC_LoadPackage.LoadPackageParam loadPackageParam) {
+    public void install(TargetPackage loadPackageParam) {
         if (!PHOTOS_PACKAGE.equals(loadPackageParam.packageName)) {
             return;
         }

@@ -1,4 +1,7 @@
 package io.github.hankaviator.phoset;
+
+import io.github.hankaviator.gappuccino.runtime.*;
+
 import io.github.hankaviator.gappuccino.BuildConfig;
 
 import android.app.Dialog;
@@ -8,9 +11,6 @@ import android.content.res.Resources;
 import android.util.Log;
 import android.view.View;
 import android.widget.TextView;
-
-import de.robv.android.xposed.XC_MethodHook;
-import de.robv.android.xposed.XposedBridge;
 
 /** Automatically accepts only Google Photos' identifiable move-to-trash dialogs. */
 final class TrashConfirmationBypass {
@@ -40,7 +40,7 @@ final class TrashConfirmationBypass {
     private TrashConfirmationBypass() {}
 
     static void install(ClassLoader ignored) {
-        XposedBridge.hookAllMethods(Dialog.class, "show", new XC_MethodHook(10_000) {
+        HookRuntime.hookAllMethods(Dialog.class, "show", new Callback(10_000) {
             @Override
             protected void afterHookedMethod(MethodHookParam param) {
                 acceptIfTrashConfirmation((Dialog) param.thisObject);
@@ -145,13 +145,13 @@ final class TrashConfirmationBypass {
     private static void debug(String message) {
         if (BuildConfig.DEBUG) {
             Log.i(TAG, message);
-            XposedBridge.log(TAG + ": " + message);
+            HookRuntime.log(TAG + ": " + message);
         }
     }
 
     private static void always(String message, Throwable error) {
         Log.e(TAG, message, error);
-        XposedBridge.log(TAG + ": " + message
+        HookRuntime.log(TAG + ": " + message
                 + (error == null ? "" : "\n" + Log.getStackTraceString(error)));
     }
 }

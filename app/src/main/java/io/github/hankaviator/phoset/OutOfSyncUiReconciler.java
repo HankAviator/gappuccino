@@ -1,4 +1,7 @@
 package io.github.hankaviator.phoset;
+
+import io.github.hankaviator.gappuccino.runtime.*;
+
 import io.github.hankaviator.gappuccino.BuildConfig;
 
 import android.app.Activity;
@@ -17,10 +20,6 @@ import java.lang.ref.WeakReference;
 import java.util.Collections;
 import java.util.Map;
 import java.util.WeakHashMap;
-
-import de.robv.android.xposed.XC_MethodHook;
-import de.robv.android.xposed.XposedBridge;
-import de.robv.android.xposed.XposedHelpers;
 
 /** Uses Photos' own review controls, identified by stable resource names. */
 final class OutOfSyncUiReconciler {
@@ -54,8 +53,8 @@ final class OutOfSyncUiReconciler {
 
     static void install() {
         AutomaticReviewWindow.install();
-        XposedHelpers.findAndHookMethod(View.class, "setVisibility", int.class,
-                new XC_MethodHook() {
+        Reflection.findAndHookMethod(View.class, "setVisibility", int.class,
+                new Callback() {
                     @Override
                     protected void beforeHookedMethod(MethodHookParam param) {
                         View view = (View) param.thisObject;
@@ -81,8 +80,8 @@ final class OutOfSyncUiReconciler {
                         }
                     }
                 });
-        XposedHelpers.findAndHookMethod(View.class, "onAttachedToWindow",
-                new XC_MethodHook() {
+        Reflection.findAndHookMethod(View.class, "onAttachedToWindow",
+                new Callback() {
                     @Override
                     protected void afterHookedMethod(MethodHookParam param) {
                         View view = (View) param.thisObject;
@@ -100,7 +99,7 @@ final class OutOfSyncUiReconciler {
                         }
                     }
                 });
-        XposedBridge.log(TAG + ": resource-based review controls installed ("
+        HookRuntime.log(TAG + ": resource-based review controls installed ("
                 + BuildConfig.VERSION_NAME + ")");
     }
 
@@ -313,6 +312,6 @@ final class OutOfSyncUiReconciler {
 
     static void log(String message) {
         Log.i(TAG, message);
-        XposedBridge.log(TAG + ": " + message);
+        HookRuntime.log(TAG + ": " + message);
     }
 }

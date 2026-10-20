@@ -7,5 +7,6 @@ public final class GappuccinoApplication extends Application {
     @Override public void onCreate() {
         super.onCreate();
         DynamicColors.applyToActivitiesIfAvailable(this);
+        FrameworkConnection.start(this);
     }
 }

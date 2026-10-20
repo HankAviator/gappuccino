@@ -1,5 +1,8 @@
 package io.github.hankaviator.dualpathvpn;
 
+import io.github.hankaviator.gappuccino.runtime.*;
+
+
 import android.app.Application;
 import android.content.ContentResolver;
 import android.content.Context;
@@ -11,14 +14,10 @@ import android.provider.Settings;
 import java.util.ArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import de.robv.android.xposed.XC_MethodHook;
-import de.robv.android.xposed.XposedBridge;
-import de.robv.android.xposed.XposedHelpers;
-
 /** Lets Photos' Cronet traffic reach HyperOS's TCP-only SLA routing rules. */
 public final class PhotosTransportHook {
     private final ClassLoader loader;
-    private final ArrayList<XC_MethodHook.Unhook> hooks = new ArrayList<>();
+    private final ArrayList<Callback.Unhook> hooks = new ArrayList<>();
     private final AtomicBoolean configuredLogged = new AtomicBoolean();
     private volatile boolean enabled;
     private ContentObserver observer;
@@ -29,8 +28,8 @@ public final class PhotosTransportHook {
 
     public static void install(ClassLoader loader) {
         PhotosTransportHook transport = new PhotosTransportHook(loader);
-        XposedHelpers.findAndHookMethod(Application.class, "attach", Context.class,
-                new XC_MethodHook() {
+        Reflection.findAndHookMethod(Application.class, "attach", Context.class,
+                new Callback() {
             @Override
             protected void afterHookedMethod(MethodHookParam param) {
                 transport.observe((Context) param.args[0]);
@@ -68,7 +67,7 @@ public final class PhotosTransportHook {
         }
         enabled = boost;
         if (!boost) {
-            for (XC_MethodHook.Unhook hook : hooks) {
+            for (Callback.Unhook hook : hooks) {
                 hook.unhook();
             }
             hooks.clear();
@@ -80,24 +79,24 @@ public final class PhotosTransportHook {
             return;
         }
         try {
-            Class<?> builder = XposedHelpers.findClass("org.chromium.net.CronetEngine$Builder",
+            Class<?> builder = Reflection.findClass("org.chromium.net.CronetEngine$Builder",
                     loader);
-            XC_MethodHook configure = new XC_MethodHook() {
+            Callback configure = new Callback() {
                 @Override
                 protected void beforeHookedMethod(MethodHookParam param) {
                     configureTcp(param.thisObject);
                 }
             };
-            hooks.addAll(XposedBridge.hookAllConstructors(builder, new XC_MethodHook() {
+            hooks.addAll(HookRuntime.hookAllConstructors(builder, new Callback() {
                 @Override
                 protected void afterHookedMethod(MethodHookParam param) {
                     configureTcp(param.thisObject);
                 }
             }));
-            hooks.addAll(XposedBridge.hookAllMethods(builder, "buildExperimental", configure));
+            hooks.addAll(HookRuntime.hookAllMethods(builder, "buildExperimental", configure));
             // Cover both public builders, including overridden/bridge methods.
             hookBuilderMethods(builder, configure);
-            Class<?> experimental = XposedHelpers.findClassIfExists(
+            Class<?> experimental = Reflection.findClassIfExists(
                     "org.chromium.net.ExperimentalCronetEngine$Builder", loader);
             if (experimental != null) {
                 hookBuilderMethods(experimental, configure);
@@ -105,7 +104,7 @@ public final class PhotosTransportHook {
             log("TCP compatibility hooks enabled");
         } catch (Throwable error) {
             enabled = false;
-            for (XC_MethodHook.Unhook hook : hooks) {
+            for (Callback.Unhook hook : hooks) {
                 hook.unhook();
             }
             hooks.clear();
@@ -113,9 +112,9 @@ public final class PhotosTransportHook {
         }
     }
 
-    private void hookBuilderMethods(Class<?> builder, XC_MethodHook configure) {
-        hooks.addAll(XposedBridge.hookAllMethods(builder, "build", configure));
-        hooks.addAll(XposedBridge.hookAllMethods(builder, "enableQuic", new XC_MethodHook() {
+    private void hookBuilderMethods(Class<?> builder, Callback configure) {
+        hooks.addAll(HookRuntime.hookAllMethods(builder, "build", configure));
+        hooks.addAll(HookRuntime.hookAllMethods(builder, "enableQuic", new Callback() {
             @Override
             protected void beforeHookedMethod(MethodHookParam param) {
                 if (enabled) {
@@ -130,8 +129,8 @@ public final class PhotosTransportHook {
             return;
         }
         try {
-            Object delegate = XposedHelpers.getObjectField(builder, "mBuilderDelegate");
-            XposedHelpers.callMethod(delegate, "enableQuic", false);
+            Object delegate = Reflection.getObjectField(builder, "mBuilderDelegate");
+            Reflection.callMethod(delegate, "enableQuic", false);
             if (configuredLogged.compareAndSet(false, true)) {
                 log("configured Cronet with QUIC disabled for HyperOS SLA");
             }
@@ -141,6 +140,6 @@ public final class PhotosTransportHook {
     }
 
     private static void log(String message) {
-        XposedBridge.log("[DualPathVPN] Google Photos: " + message);
+        HookRuntime.log("[DualPathVPN] Google Photos: " + message);
     }
 }

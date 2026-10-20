@@ -1,5 +1,8 @@
 package io.github.hankaviator.gdialertweak;
 
+import io.github.hankaviator.gappuccino.runtime.*;
+
+
 import android.content.Context;
 
 import java.io.File;
@@ -17,15 +20,12 @@ import org.luckypray.dexkit.query.enums.StringMatchType;
 import org.luckypray.dexkit.query.matchers.ClassMatcher;
 import org.luckypray.dexkit.result.ClassData;
 
-import de.robv.android.xposed.XC_MethodHook;
-import de.robv.android.xposed.XposedBridge;
-
 /** Semantic DEX discovery: no Phone version checks or obfuscated class/method names. */
 final class RecordingDisclosureHook {
     private RecordingDisclosureHook() {}
 
     static void install(Context context, ClassLoader loader, BooleanSupplier enabled) {
-        List<XC_MethodHook.Unhook> hooks = new ArrayList<>();
+        List<Callback.Unhook> hooks = new ArrayList<>();
         try {
             System.loadLibrary("dexkit");
             try (DexKitBridge bridge = DexKitBridge.create(context.getApplicationInfo().sourceDir)) {
@@ -68,7 +68,7 @@ final class RecordingDisclosureHook {
 
                 File silence = DisclosureAudio.createSilence(context.getFilesDir());
                 Object silentAudio = rawConstructor.newInstance(silence);
-                hooks.add(XposedBridge.hookMethod(pairConstructors.get(0), new XC_MethodHook() {
+                hooks.add(HookRuntime.hookMethod(pairConstructors.get(0), new Callback() {
                     @Override protected void beforeHookedMethod(MethodHookParam param) {
                         if (!enabled.getAsBoolean()) return;
                         param.args[0] = silentAudio;
@@ -76,7 +76,7 @@ final class RecordingDisclosureHook {
                     }
                 }));
                 for (Method method : providerMethods) {
-                    hooks.add(XposedBridge.hookMethod(method, new XC_MethodHook() {
+                    hooks.add(HookRuntime.hookMethod(method, new Callback() {
                         @Override protected void afterHookedMethod(MethodHookParam param) {
                             if (param.hasThrowable() || param.getResult() == null
                                     || !enabled.getAsBoolean()) return;
@@ -90,7 +90,7 @@ final class RecordingDisclosureHook {
             }
         } catch (Throwable error) {
             // Remove partial installation and retain Google's normal disclosure behavior.
-            for (XC_MethodHook.Unhook hook : hooks) hook.unhook();
+            for (Callback.Unhook hook : hooks) hook.unhook();
             log("disclosure suppression unavailable; original audio retained: " + error);
         }
     }
@@ -109,5 +109,5 @@ final class RecordingDisclosureHook {
         return matches.get(0).getInstance(loader);
     }
 
-    private static void log(String message) { XposedBridge.log("GDialerTweak: " + message); }
+    private static void log(String message) { HookRuntime.log("GDialerTweak: " + message); }
 }

@@ -1,5 +1,8 @@
 package io.github.hankaviator.phoset;
 
+import io.github.hankaviator.gappuccino.runtime.*;
+
+
 import android.app.Activity;
 import android.app.ActivityOptions;
 import android.content.Intent;
@@ -12,9 +15,6 @@ import android.view.WindowManager;
 import java.util.Collections;
 import java.util.Map;
 import java.util.WeakHashMap;
-
-import de.robv.android.xposed.XC_MethodHook;
-import de.robv.android.xposed.XposedHelpers;
 
 /** Keeps only PhoSet-launched reviews transparent, with the original Photos window underneath. */
 final class AutomaticReviewWindow {
@@ -30,8 +30,8 @@ final class AutomaticReviewWindow {
     private AutomaticReviewWindow() {}
 
     static void install() {
-        XposedHelpers.findAndHookMethod(Activity.class, "startActivityForResult",
-                Intent.class, int.class, Bundle.class, new XC_MethodHook() {
+        Reflection.findAndHookMethod(Activity.class, "startActivityForResult",
+                Intent.class, int.class, Bundle.class, new Callback() {
                     @Override
                     protected void beforeHookedMethod(MethodHookParam param) {
                         Intent intent = (Intent) param.args[0];
@@ -47,8 +47,8 @@ final class AutomaticReviewWindow {
                                 (Activity) param.thisObject, 0, 0).toBundle();
                     }
                 });
-        XposedHelpers.findAndHookMethod(Activity.class, "onCreate", Bundle.class,
-                new XC_MethodHook() {
+        Reflection.findAndHookMethod(Activity.class, "onCreate", Bundle.class,
+                new Callback() {
                     @Override
                     protected void afterHookedMethod(MethodHookParam param) {
                         Activity activity = (Activity) param.thisObject;
@@ -82,7 +82,7 @@ final class AutomaticReviewWindow {
                                 "automatic review timed out"), 5 * 60_000L);
                     }
                 });
-        XposedHelpers.findAndHookMethod(Activity.class, "onResume", new XC_MethodHook() {
+        Reflection.findAndHookMethod(Activity.class, "onResume", new Callback() {
             @Override
             protected void afterHookedMethod(MethodHookParam param) {
                 Activity activity = (Activity) param.thisObject;
@@ -93,7 +93,7 @@ final class AutomaticReviewWindow {
                 }
             }
         });
-        XposedHelpers.findAndHookMethod(Activity.class, "onPause", new XC_MethodHook() {
+        Reflection.findAndHookMethod(Activity.class, "onPause", new Callback() {
             @Override
             protected void beforeHookedMethod(MethodHookParam param) {
                 State state = STATES.get((Activity) param.thisObject);
@@ -102,7 +102,7 @@ final class AutomaticReviewWindow {
                 }
             }
         });
-        XposedHelpers.findAndHookMethod(Activity.class, "onDestroy", new XC_MethodHook() {
+        Reflection.findAndHookMethod(Activity.class, "onDestroy", new Callback() {
             @Override
             protected void afterHookedMethod(MethodHookParam param) {
                 STATES.remove((Activity) param.thisObject);

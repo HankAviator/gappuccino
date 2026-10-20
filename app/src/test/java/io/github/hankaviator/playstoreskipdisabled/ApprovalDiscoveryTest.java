@@ -57,4 +57,36 @@ public class ApprovalDiscoveryTest {
         code.addAll(saved(ApprovalDiscovery.INDEX, PAGE));
         assertThrows(IllegalStateException.class, () -> ApprovalDiscovery.savedFields(code, HOST));
     }
+
+    private static final ImmutableFieldReference PENDING = new ImmutableFieldReference(HOST, "renamed", "Ljava/util/List;");
+    private static List<Instruction> copiedList(boolean range) {
+        return new ArrayList<>(List.of(
+                new ImmutableInstruction21c(Opcode.CONST_STRING, 2, new ImmutableStringReference(ApprovalDiscovery.PENDING)),
+                new ImmutableInstruction21c(Opcode.NEW_INSTANCE, 0, new ImmutableTypeReference("Ljava/util/ArrayList;")),
+                new ImmutableInstruction22c(Opcode.IGET_OBJECT, 1, 4, PENDING),
+                range
+                        ? new ImmutableInstruction3rc(Opcode.INVOKE_DIRECT_RANGE, 0, 2,
+                            new ImmutableMethodReference("Ljava/util/ArrayList;", "<init>", List.of("Ljava/util/Collection;"), "V"))
+                        : new ImmutableInstruction35c(Opcode.INVOKE_DIRECT, 2, 0, 1, 0, 0, 0,
+                            new ImmutableMethodReference("Ljava/util/ArrayList;", "<init>", List.of("Ljava/util/Collection;"), "V")),
+                new ImmutableInstruction12x(Opcode.MOVE_OBJECT, 3, 0),
+                new ImmutableInstruction35c(Opcode.INVOKE_VIRTUAL, 3, 5, 2, 3, 0, 0,
+                        new ImmutableMethodReference("Landroid/os/Bundle;", "putParcelableArrayList",
+                            List.of("Ljava/lang/String;", "Ljava/util/ArrayList;"), "V"))));
+    }
+    @Test public void defensiveArrayListCopyRetainsTheOriginalListField() {
+        assertEquals(PENDING, ApprovalDiscovery.savedFields(copiedList(false), HOST).get(ApprovalDiscovery.PENDING));
+        assertEquals(PENDING, ApprovalDiscovery.savedFields(copiedList(true), HOST).get(ApprovalDiscovery.PENDING));
+    }
+    @Test public void overwrittenCopySourceDoesNotIdentifyAPendingField() {
+        List<Instruction> code = copiedList(false);
+        code.add(3, new ImmutableInstruction11n(Opcode.CONST_4, 1, 0));
+        assertFalse(ApprovalDiscovery.savedFields(code, HOST).containsKey(ApprovalDiscovery.PENDING));
+    }
+    @Test public void unrelatedConstructorsAreNotTreatedAsListCopies() {
+        List<Instruction> code = copiedList(false);
+        code.set(3, new ImmutableInstruction35c(Opcode.INVOKE_DIRECT, 2, 0, 1, 0, 0, 0,
+                new ImmutableMethodReference("Lunknown/Wrapper;", "<init>", List.of("Ljava/util/Collection;"), "V")));
+        assertFalse(ApprovalDiscovery.savedFields(code, HOST).containsKey(ApprovalDiscovery.PENDING));
+    }
 }

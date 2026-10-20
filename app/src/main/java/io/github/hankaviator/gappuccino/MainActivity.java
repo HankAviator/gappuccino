@@ -41,11 +41,21 @@ public final class MainActivity extends ComponentActivity {
     private LinearLayout content;
     private NestedScrollView scroll;
     private SharedPreferences prefs;
+    private boolean frameworkReady;
+    private final Runnable frameworkChanged = () -> {
+        if (!frameworkReady && FrameworkConnection.isReady()) {
+            frameworkReady = true;
+            render();
+        }
+    };
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
         FeatureSettings.ensureDefaults(this);
         prefs = FeatureSettings.open(this);
+        frameworkReady = FrameworkConnection.isReady();
+        FrameworkConnection.listen(frameworkChanged);
+        FrameworkConnection.synchronize(this);
         if (state != null) selectedPackage = state.getString("selected_app");
         if (TweakCatalog.find(selectedPackage) == null) selectedPackage = null;
         WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
@@ -61,6 +71,11 @@ public final class MainActivity extends ComponentActivity {
         // App pages restore their identified scrolling views and app-bar behavior automatically.
         if (state != null && selectedPackage == null)
             scroll.post(() -> scroll.scrollTo(0, state.getInt("scroll_y", 0)));
+    }
+
+    @Override protected void onDestroy() {
+        FrameworkConnection.unlisten(frameworkChanged);
+        super.onDestroy();
     }
 
     @Override protected void onSaveInstanceState(Bundle state) {
@@ -247,25 +262,16 @@ public final class MainActivity extends ComponentActivity {
                 info.setChecked(toggle.isChecked());
             }
         });
-        row.setOnClickListener(v -> toggle.setChecked(!toggle.isChecked()));
+        row.setOnClickListener(v -> {
+            if (!FrameworkConnection.isReady()) {
+                FrameworkConnection.synchronize(this);
+                Toast.makeText(this, FrameworkConnection.status(), Toast.LENGTH_LONG).show(); return;
+            }
+            toggle.setChecked(!toggle.isChecked());
+        });
         toggle.setOnCheckedChangeListener((button, checked) -> {
             row.sendAccessibilityEvent(android.view.accessibility.AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED);
-            if (!tweak.key().equals("asi_smart_reply")) {
-                prefs.edit().putBoolean(tweak.key(), checked).apply();
-                return;
-            }
-            toggle.setEnabled(false);
-            row.setEnabled(false);
-            new Thread(() -> {
-                try {
-                    String message = SmartReplySetup.configure(this, checked);
-                    prefs.edit().putBoolean(tweak.key(), checked).commit();
-                    runOnUiThread(() -> { toggle.setEnabled(true); row.setEnabled(true); Toast.makeText(this, message, Toast.LENGTH_LONG).show(); });
-                } catch (Exception error) {
-                    runOnUiThread(() -> { render();
-                        Toast.makeText(this, "Root setup failed: " + error.getMessage(), Toast.LENGTH_LONG).show(); });
-                }
-            }, "SmartReplySetup").start();
+            prefs.edit().putBoolean(tweak.key(), checked).apply();
         });
         return row;
     }

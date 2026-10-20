@@ -1,5 +1,8 @@
 package io.github.hankaviator.greatgadsbye;
 
+import io.github.hankaviator.gappuccino.runtime.*;
+
+
 import android.app.Activity;
 import android.content.Context;
 import android.content.pm.ActivityInfo;
@@ -18,14 +21,8 @@ import java.util.Set;
 import java.util.WeakHashMap;
 import java.util.regex.Pattern;
 
-import de.robv.android.xposed.IXposedHookLoadPackage;
-import de.robv.android.xposed.XC_MethodHook;
-import de.robv.android.xposed.XSharedPreferences;
-import de.robv.android.xposed.XposedBridge;
-import de.robv.android.xposed.callbacks.XC_LoadPackage;
-
 /** Removes sponsored UI from the supported Google apps. */
-public final class GreatGadsbye implements IXposedHookLoadPackage {
+public final class GreatGadsbye implements FeatureInstaller {
     private static final String GMAIL_PACKAGE = "com.google.android.gm";
     private static final String MAPS_PACKAGE = "com.google.android.apps.maps";
     private static final String MAPS_MAIN_ACTIVITY = "com.google.android.maps.MapsActivity";
@@ -50,7 +47,7 @@ public final class GreatGadsbye implements IXposedHookLoadPackage {
     private static String activeFeature;
 
     @Override
-    public void handleLoadPackage(XC_LoadPackage.LoadPackageParam loadPackageParam) {
+    public void install(TargetPackage loadPackageParam) {
         if (!loadPackageParam.packageName.equals(loadPackageParam.processName)) {
             return;
         }
@@ -62,8 +59,8 @@ public final class GreatGadsbye implements IXposedHookLoadPackage {
             return;
         }
 
-        XposedBridge.log(TAG + ": loaded in " + loadPackageParam.processName);
-        XposedBridge.hookAllMethods(Activity.class, "onPostResume", new XC_MethodHook() {
+        HookRuntime.log(TAG + ": loaded in " + loadPackageParam.processName);
+        HookRuntime.hookAllMethods(Activity.class, "onPostResume", new Callback() {
             @Override
             protected void afterHookedMethod(MethodHookParam param) {
                 settingsInitialized = false;
@@ -83,8 +80,8 @@ public final class GreatGadsbye implements IXposedHookLoadPackage {
     }
 
     private static void hookMapsOrientationRequests() {
-        XposedBridge.hookAllMethods(Activity.class, "setRequestedOrientation",
-                new XC_MethodHook() {
+        HookRuntime.hookAllMethods(Activity.class, "setRequestedOrientation",
+                new Callback() {
                     @Override
                     protected void beforeHookedMethod(MethodHookParam param) {
                         Activity activity = (Activity) param.thisObject;
@@ -109,7 +106,7 @@ public final class GreatGadsbye implements IXposedHookLoadPackage {
                 : ActivityInfo.SCREEN_ORIENTATION_USER;
         if (activity.getRequestedOrientation() != desired) {
             activity.setRequestedOrientation(desired);
-            XposedBridge.log(TAG + ": Maps orientation policy applied: " + desired);
+            HookRuntime.log(TAG + ": Maps orientation policy applied: " + desired);
         }
     }
 
@@ -153,7 +150,7 @@ public final class GreatGadsbye implements IXposedHookLoadPackage {
     }
 
     private static void hookTextChanges() {
-        XposedBridge.hookAllMethods(TextView.class, "setText", new XC_MethodHook() {
+        HookRuntime.hookAllMethods(TextView.class, "setText", new Callback() {
             @Override
             protected void afterHookedMethod(MethodHookParam param) {
                 inspectChangedView((View) param.thisObject);
@@ -162,7 +159,7 @@ public final class GreatGadsbye implements IXposedHookLoadPackage {
     }
 
     private static void hookContentDescriptionChanges() {
-        XposedBridge.hookAllMethods(View.class, "setContentDescription", new XC_MethodHook() {
+        HookRuntime.hookAllMethods(View.class, "setContentDescription", new Callback() {
             @Override
             protected void afterHookedMethod(MethodHookParam param) {
                 inspectChangedView((View) param.thisObject);
@@ -171,7 +168,7 @@ public final class GreatGadsbye implements IXposedHookLoadPackage {
     }
 
     private static void hookGmailViewInsertions() {
-        XposedBridge.hookAllMethods(ViewGroup.class, "addView", new XC_MethodHook() {
+        HookRuntime.hookAllMethods(ViewGroup.class, "addView", new Callback() {
             @Override
             protected void beforeHookedMethod(MethodHookParam param) {
                 if (param.args.length == 0 || !(param.args[0] instanceof View)) {
@@ -209,7 +206,7 @@ public final class GreatGadsbye implements IXposedHookLoadPackage {
                     root.postDelayed(schedule.settledScan, 300L);
                 });
                 schedule.postStartupScans();
-                XposedBridge.log(TAG + ": observing " + activity.getClass().getName());
+                HookRuntime.log(TAG + ": observing " + activity.getClass().getName());
             }
         }
         scan(root);
@@ -472,7 +469,7 @@ public final class GreatGadsbye implements IXposedHookLoadPackage {
             return;
         }
         try {
-            XSharedPreferences preferences = new XSharedPreferences(
+            HookPreferences preferences = new HookPreferences(
                     FeatureSettings.MODULE_PACKAGE, FeatureSettings.PREFERENCES);
             cachedEnabled = preferences.getBoolean(activeFeature, true);
             cachedMapsRotationProtectionEnabled = preferences.getBoolean(
@@ -480,7 +477,7 @@ public final class GreatGadsbye implements IXposedHookLoadPackage {
         } catch (RuntimeException error) {
             cachedEnabled = true;
             cachedMapsRotationProtectionEnabled = true;
-            XposedBridge.log(TAG + ": could not read settings; defaulting enabled: " + error);
+            HookRuntime.log(TAG + ": could not read settings; defaulting enabled: " + error);
         }
         settingsInitialized = true;
     }

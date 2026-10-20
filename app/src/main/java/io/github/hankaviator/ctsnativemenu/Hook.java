@@ -1,5 +1,8 @@
 package io.github.hankaviator.ctsnativemenu;
 
+import io.github.hankaviator.gappuccino.runtime.*;
+
+
 import android.app.SearchManager;
 import android.app.RemoteAction;
 import android.app.ActivityOptions;
@@ -22,10 +25,7 @@ import org.luckypray.dexkit.query.matchers.ClassMatcher;
 import org.luckypray.dexkit.query.matchers.MethodMatcher;
 import org.luckypray.dexkit.result.ClassData;
 import org.luckypray.dexkit.result.MethodData;
-import de.robv.android.xposed.*;
-import de.robv.android.xposed.callbacks.XC_LoadPackage;
-
-public final class Hook implements IXposedHookLoadPackage {
+public final class Hook implements FeatureInstaller {
     private static final String GOOGLE = "com.google.android.googlequicksearchbox";
     private static final WeakHashMap<View, State> states = new WeakHashMap<>();
     private static final List<WeakReference<Object>> controllers = new ArrayList<>();
@@ -35,16 +35,16 @@ public final class Hook implements IXposedHookLoadPackage {
     private record Mapping(Class<?> controller, Method view, Method text, Method selectAll,
                            Field peerOverlay, Field controllerOverlay) {}
 
-    public void handleLoadPackage(XC_LoadPackage.LoadPackageParam p) throws Throwable {
+    public void install(TargetPackage p) throws Throwable {
         if (!GOOGLE.equals(p.packageName)) return;
-        XposedHelpers.findAndHookMethod(android.app.Application.class, "attach", Context.class, new XC_MethodHook() {
+        Reflection.findAndHookMethod(android.app.Application.class, "attach", Context.class, new Callback() {
             protected void afterHookedMethod(MethodHookParam h) {
                 try {
                     Context c = (Context) h.args[0];
                     if (installed) return;
                     installed = true;
                     install(c, p.classLoader);
-                } catch (Throwable e) { XposedBridge.log("CircleNativeMenu: generic discovery unavailable; original menu retained: " + e); }
+                } catch (Throwable e) { HookRuntime.log("CircleNativeMenu: generic discovery unavailable; original menu retained: " + e); }
             }
         });
     }
@@ -82,9 +82,9 @@ public final class Hook implements IXposedHookLoadPackage {
             controllerOverlay.setAccessible(true); peerOverlay.setAccessible(true); select.setAccessible(true);
             mapping = new Mapping(select.getDeclaringClass(), view, text, select, peerOverlay, controllerOverlay);
         }
-        List<XC_MethodHook.Unhook> hooks = new ArrayList<>();
+        List<Callback.Unhook> hooks = new ArrayList<>();
         try {
-            hooks.addAll(XposedBridge.hookAllConstructors(mapping.controller(), new XC_MethodHook() {
+            hooks.addAll(HookRuntime.hookAllConstructors(mapping.controller(), new Callback() {
                 protected void afterHookedMethod(MethodHookParam p) {
                     synchronized (controllers) {
                         controllers.removeIf(w -> w.get() == null);
@@ -92,7 +92,7 @@ public final class Hook implements IXposedHookLoadPackage {
                     }
                 }
             }));
-            hooks.add(XposedBridge.hookMethod(mapping.view(), new XC_MethodHook() {
+            hooks.add(HookRuntime.hookMethod(mapping.view(), new Callback() {
                 protected void afterHookedMethod(MethodHookParam p) {
                     try {
                         if (p.hasThrowable() || !(p.getResult() instanceof View)) return;
@@ -101,12 +101,12 @@ public final class Hook implements IXposedHookLoadPackage {
                         if (state == null) { state = new State(view); states.put(view, state); }
                         state.peer = new WeakReference<>(p.thisObject);
                         state.scheduleUpdate(view);
-                    } catch (Throwable e) { XposedBridge.log("CircleNativeMenu update: " + e); }
+                    } catch (Throwable e) { HookRuntime.log("CircleNativeMenu update: " + e); }
                 }
             }));
-            XposedBridge.log("CircleNativeMenu: generic hooks installed " + android.os.Process.myPid());
+            HookRuntime.log("CircleNativeMenu: generic hooks installed " + android.os.Process.myPid());
         } catch (Throwable error) {
-            for (XC_MethodHook.Unhook hook : hooks) hook.unhook();
+            for (Callback.Unhook hook : hooks) hook.unhook();
             throw new IllegalStateException("Lens hooks unavailable; original menu retained", error);
         }
     }
@@ -170,10 +170,10 @@ public final class Hook implements IXposedHookLoadPackage {
                     if (v != null) v.post(() -> {
                         if (generation != classificationGeneration || !text.equals(selected) || !v.isAttachedToWindow()) return;
                         smartActions = actions; classifiedText = text;
-                        XposedBridge.log("CircleNativeMenu: system classification returned " + actions.size() + " actions");
+                        HookRuntime.log("CircleNativeMenu: system classification returned " + actions.size() + " actions");
                         if (mode != null) mode.invalidate();
                     });
-                } catch (Throwable e) { XposedBridge.log("CircleNativeMenu classifier: " + e.getClass().getSimpleName()); }
+                } catch (Throwable e) { HookRuntime.log("CircleNativeMenu classifier: " + e.getClass().getSimpleName()); }
                 finally { if (classifier != null) classifier.destroy(); }
             });
         }
@@ -194,13 +194,13 @@ public final class Hook implements IXposedHookLoadPackage {
                 if (changed) classify(v.getContext(), text);
                 if (mode == null && !text.equals(dismissed)) {
                     mode = v.startActionMode(this, ActionMode.TYPE_FLOATING);
-                    if (mode != null) XposedBridge.log("CircleNativeMenu: native toolbar shown");
+                    if (mode != null) HookRuntime.log("CircleNativeMenu: native toolbar shown");
                 } else if (mode != null && changed) { mode.invalidate(); mode.invalidateContentRect(); }
                 if (mode != null || text.equals(dismissed)) {
                     b.setAlpha(0f);
                     b.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
                 }
-            } catch (Throwable e) { XposedBridge.log("CircleNativeMenu selection: " + e); }
+            } catch (Throwable e) { HookRuntime.log("CircleNativeMenu selection: " + e); }
             finally { updating = false; }
         }
         public boolean onCreateActionMode(ActionMode m, Menu menu) {
@@ -277,7 +277,7 @@ public final class Hook implements IXposedHookLoadPackage {
                     c.startActivity(new Intent(item.getIntent()).putExtra(Intent.EXTRA_PROCESS_TEXT, text));
                 } else return false;
                 m.finish(); return true;
-            } catch (Throwable e) { XposedBridge.log("CircleNativeMenu action: " + e); return false; }
+            } catch (Throwable e) { HookRuntime.log("CircleNativeMenu action: " + e); return false; }
         }
         public void onDestroyActionMode(ActionMode m) { if (mode == m) mode = null; dismissed = selected; }
         public void onGetContentRect(ActionMode m, View v, Rect out) {

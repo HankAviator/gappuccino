@@ -1,9 +1,10 @@
 package io.github.hankaviator.phoset;
 
+import io.github.hankaviator.gappuccino.runtime.*;
+
+
 import java.util.Set;
 import io.github.hankaviator.gappuccino.BuildConfig;
-
-import de.robv.android.xposed.XSharedPreferences;
 
 /** Feature flag client used from inside the Google Photos process. */
 final class FeatureFlags {
@@ -21,7 +22,7 @@ final class FeatureFlags {
             return false;
         }
         try {
-            XSharedPreferences preferences = new XSharedPreferences(
+            HookPreferences preferences = new HookPreferences(
                     BuildConfig.APPLICATION_ID, "features");
             preferences.reload();
             return preferences.getBoolean(feature, true);

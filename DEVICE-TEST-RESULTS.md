@@ -1,11 +1,115 @@
 # Device test results
 
+## ASI removal (0.2.2)
+
+October 20, 2026. Removed Android System Intelligence from the settings catalog,
+hook dispatcher, package visibility and recommended scope. Removed multilingual
+selection, Smart Reply provider setup, locale fallback, Telegram capture and
+diagnostic hooks, together with the bundled overlay, installer, build scripts and
+obsolete standalone report. Earlier ASI entries below describe removed features.
+
+The signed release APK was installed as version 0.2.2 / code 18. All nine remaining
+home cards were inspected; no ASI page is present. The upgrade removed the five
+`asi_*` boolean preferences and preserved every other stored switch. APK inspection
+confirms no ASI hook classes, target-package reference or provider assets, including
+the formerly ignored overlay signature file. There are 28 recommended scopes.
+
+LSPosed CLI inspection confirmed ASI was already absent from the device's 27 live
+scopes; that exact scope list was preserved. The old Gappuccino and standalone
+Smart Reply companion directories were already absent when checked. Their former
+Content Capture overrides were cleared and the ASI-specific compatibility override
+296558535 reset to its platform default. Bitwarden remains the regular password
+autofill provider, and SYSTEM suggestion mode remains 1. No ASI process was running.
+
+Debug/release builds, all 53 unit tests, lint (zero errors), release signature and
+whitespace checks pass. The reload-policy test also rejects ASI as a hook target
+and confirms its catalog page is absent. Other feature tests retain the limits
+documented below.
+
+## Scope controls and conditional hot reload (0.2.1)
+
+October 20, 2026. Removed the per-app scope request button and all framework
+status/check controls. Preference synchronization remains automatic. The module's
+`staticScope=false` metadata retains LSPosed Dynamic scope management; no module
+UI or client scope-request call remains. Home, Fit and Generic pages were checked
+on the phone, including the preserved Generic switch state.
+
+`autoHotReload=true` now opts into APK-update reloads for generic-only main
+processes. App-specific recipes and auxiliary processes decline reload. Generic
+filter retirement runs on the UI thread and declines while it owns an observer
+or hidden card, or when the UI thread cannot respond within three seconds. Saved
+state contains only package/process strings. The new generation reads the current
+remote preferences, replaces stable hook IDs and removes leftover old handles.
+
+Live Calendar checks kept PID 15411 throughout two successful automatic reloads.
+After the first, opening its profile menu logged promotion-card removal: the AI
+offer was absent and Manage your Google Account remained available. An update
+with that menu open logged a reload deferral. Closing the menu and updating again
+completed reload in the same process. No calendar events were edited. Other
+app-specific hooks retain the previous version's restart and testing limits.
+
+Debug/release builds, all 53 unit tests, lint (zero errors), release signature
+verification and whitespace checks pass. Three new tests cover reload eligibility
+and exclusions. The release APK is installed, and all 50 pre-migration switches
+still match their saved values. No scopes were changed during these tests.
+
+## Modern LSPosed API migration (0.2.0)
+
+October 20, 2026. Xiaomi 14, Android 16 / SDK 36, KernelSU Next 3.4.2,
+LSPosed 2.2.1 (7912), framework service API 102. The installed legacy manager
+stub's version does not describe the active framework.
+
+- Both debug and release builds pass with libxposed API/service 102.0.0,
+  compile/target SDK 37, AGP 9.4.1 and Gradle 9.6.0. All 50 unit tests pass;
+  lint has zero errors. Ten new tests exercise interceptor argument changes,
+  early returns, original exceptions, recovery, failed-hook fallback, intentional
+  download-block exceptions and reflection used by Cronet builders.
+- APK inspection confirms modern `META-INF/xposed` registration, 29 recommended
+  Google app scopes and no legacy `xposed_init` or `de.robv.android.xposed`
+  references. Both APK signatures match the existing installation.
+- The release APK was installed in place. KernelSU had no root grant for
+  Gappuccino; its standard root profile was granted so the one-time import could
+  read this module's old randomized preference file. All 50 prior boolean
+  switches match after migration and after tests. No LSPosed scope was changed:
+  the device retains its existing 28 scopes, with Maps excluded.
+- The settings app displays the real framework version/API and reports seven
+  running hooked processes through the modern service. Target logs identify
+  API 102 and show hook installation in Fit, Phone, Keep, Play Store and Photos.
+- Fit: switching off and restarting restores the cycle-tracking Browse category;
+  switching on and restarting hides it while retaining five other categories.
+  The switch was restored on. This verifies app-to-framework-to-target preference
+  propagation, rather than only the settings UI.
+- Phone 242: a local Telecom test call became ACTIVE after notification Answer,
+  with Gappuccino still foreground. Tapping its connected notification opened
+  InCallActivity and it remained visible. A second ringing call's notification
+  body opened InCallActivity. Both local calls were ended; no carrier call or
+  recording-audio test was performed.
+- Keep: only a new disposable API102 test note was created. Ordinary delete moved
+  it to trash without confirmation and logged the automatic positive action.
+  Permanent deletion still displayed its confirmation. That confirmation was
+  manually accepted to dispose of this test note only.
+- Photos: opening its profile menu logged removal of the promotion card; the AI
+  offer was absent and Manage your Google Account remained. Frame-by-frame
+  animation/performance measurements were not repeated for this migration.
+- Play Store: generic approval discovery installed in main, background and
+  quick-launch processes. No real bulk update or self-update download was run.
+- Bitwarden remains the regular password autofill provider. The device's ASI
+  companion was already disabled in its root manager (disable file dated
+  October 19), and provider defaults are empty; the migration leaves that root
+  configuration intact. Smart Reply generation was not retested.
+
+The modern entry point waits for package-ready class loaders and reads framework
+preferences. Per-method interceptor IDs avoid stacked registrations. Hot reload
+is explicitly disabled until UI observers, executors and native state have a
+complete teardown lifecycle; restart affected apps after APK updates. Features
+not listed above retain their earlier test limits.
+
 October 8, 2026. Gappuccino 0.1.1 (version code 2), Xiaomi 14, Android 15.
 
 Later Smart Reply work installed **0.1.5 (version code 6)**. The original feature
 checks below describe the earlier 0.1.1 run; they were not all repeated after
-the ASI additions. See [SMART-REPLY-RESULTS.md](SMART-REPLY-RESULTS.md) for the
-new implementation, live-state checks, WhatsApp result, and Telegram limit.
+the ASI additions. Those features and their dedicated report were removed in
+0.2.2; the ASI references below are historical test evidence only.
 
 Version **0.1.6 (version code 7)** adds a default-off Google Phone recording
 disclosure audio switch with generic DEX discovery. Its markers and audio
@@ -236,3 +340,63 @@ notification-body sequence passed again. The call screen stayed in the foregroun
 until the test call was ended. Debug/release builds, all 36 unit tests, lint (zero
 errors) and release signature verification passed. Carrier-call behavior and
 other Phone versions were not tested in this run.
+
+## Play Store defensive-list discovery (0.1.13)
+
+October 20, 2026. Installed Play Store 53.5.48-34 [0] [PR] 995634172 on the
+Xiaomi 14. LSPosed reported `No saved-state field for
+MultiInstallActivity.installs-for-approval`, leaving the normal approval UI.
+Inspection of the installed base APK showed that onSaveInstanceState now passes
+`new ArrayList<>(this.v)` to Bundle.putParcelableArrayList. The prior discovery
+followed direct field reads but lost the field provenance at the copy constructor.
+
+Discovery now follows ArrayList(Collection) copies, including range-invoke forms,
+while rejecting unrelated constructors and overwritten source registers. Offline
+audits recover renderer y, pending List v, index x, page y and item flag akuy.d
+from the installed APK. The older reference APK still resolves its original
+ArrayList-based mapping. No version or obfuscated-name constants were added.
+
+The signed 0.1.13 release APK was installed over wireless ADB after USB was
+unavailable. Play Store was restarted; its main and background processes then
+logged `Generic approval hook installed` with no new discovery error. Debug and
+release builds, all 39 unit tests, lint (zero errors) and APK signature verification
+passed. Three new tests cover copied-list provenance, overwritten sources and
+unrelated constructors. No real updates were started, so a genuine Update all
+approval flow remains unverified. APK inspection and build logs remain under
+ignored `app/build/generic/`.
+
+## Phone 242, Keep confirmation and Fit period UI (0.1.14)
+
+October 20, 2026. Xiaomi 14 now reports Android 16 SDK 36. Phone is
+242.0.998227485-pixel, Keep 5.26.411.02.90 and Fit
+2026.08.27.00.arm64-v8a.release.
+
+Phone logs showed ProcessManager.getForegroundInfo permission denials followed
+by a null task-history fallback, preventing the notification-answer suppression.
+Removed that foreground/history dependency. Local Telecom calls then verified
+notification Answer stayed in Gappuccino, connected-call content taps opened a
+stable Google call screen, immediate content taps within the suppression window
+also worked, and ringing content taps opened the ringing screen. The final
+release APK repeated the Answer/immediate-content sequence. All test calls were
+ended; no carrier call or recording/audio test was performed.
+
+A newly created disposable Keep note showed the normal trash confirmation before
+the change. With the feature enabled it moved directly to trash and the hook log
+confirmed the normal positive-button callback. Its permanent-delete confirmation
+still appeared; that dialog was confirmed manually to dispose of the test note.
+Existing notes were untouched. Shared-note and task/reminder requests are excluded
+by the matcher and were not exercised with real shared notes or reminders.
+
+Fit's Browse cycle-tracking button disappeared while Activity, Body measurements,
+Vitals, Nutrition and Sleep remained. Turning the switch off and restarting Fit
+restored the button; re-enabling and restarting hid it again. The final release
+APK repeated the enabled check. No profile details, consent or health records
+were changed. Other period entry surfaces are recognized by localized labels but
+were not independently exercised in this test.
+
+Keep and Fit have separate app pages using the existing Material 3 layout. Both
+new switches are enabled. Their recommended scopes already existed and required
+no scope changes. Generic promotion settings were preserved. Debug/release builds,
+40 unit tests, lint (zero errors) and release signature verification passed. The
+signed 0.1.14 APK was installed over wireless ADB. Inspection files and private UI
+captures remain under ignored `app/build/generic/`.

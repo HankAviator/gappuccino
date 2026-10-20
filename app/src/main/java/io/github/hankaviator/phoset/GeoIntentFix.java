@@ -1,16 +1,16 @@
 package io.github.hankaviator.phoset;
 
+import io.github.hankaviator.gappuccino.runtime.*;
+
+
 import android.app.Instrumentation;
 import android.content.Intent;
-
-import de.robv.android.xposed.XC_MethodHook;
-import de.robv.android.xposed.XposedBridge;
 
 final class GeoIntentFix {
     private GeoIntentFix() {}
 
     static void install() {
-        XposedBridge.hookAllMethods(Instrumentation.class, "execStartActivity", new XC_MethodHook() {
+        HookRuntime.hookAllMethods(Instrumentation.class, "execStartActivity", new Callback() {
             @Override
             protected void beforeHookedMethod(MethodHookParam param) {
                 if (!FeatureFlags.isEnabled(FeatureFlags.GEO_INTENT_FIX)) {

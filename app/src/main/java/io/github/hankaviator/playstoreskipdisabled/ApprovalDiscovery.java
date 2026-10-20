@@ -65,6 +65,22 @@ final class ApprovalDiscovery {
         Map<Integer, Object> registers = new HashMap<>();
         Map<String, FieldReference> fields = new HashMap<>();
         for (Instruction instruction : instructions) {
+            // Newer Play Store saves a defensive ArrayList copy of its List field.
+            // Preserve only this known constructor's source-field provenance.
+            if ((instruction.getOpcode() == Opcode.INVOKE_DIRECT
+                    || instruction.getOpcode() == Opcode.INVOKE_DIRECT_RANGE)
+                    && instruction instanceof ReferenceInstruction ref
+                    && ref.getReference() instanceof MethodReference call
+                    && call.getDefiningClass().equals("Ljava/util/ArrayList;")
+                    && call.getName().equals("<init>")
+                    && call.getParameterTypes().equals(List.of("Ljava/util/Collection;"))) {
+                int[] args = arguments(instruction);
+                if (args.length == 2) {
+                    Object source = registers.get(args[1]);
+                    if (source instanceof FieldReference) registers.put(args[0], source);
+                    else registers.remove(args[0]);
+                }
+            }
             if (instruction instanceof ReferenceInstruction ref && ref.getReference() instanceof MethodReference call
                     && call.getDefiningClass().equals("Landroid/os/Bundle;")
                     && (call.getName().equals("putInt") || call.getName().equals("putParcelableArrayList"))) {
