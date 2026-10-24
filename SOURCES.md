@@ -178,3 +178,10 @@ attachment or binding, before initial measurement. Photos' account menu otherwis
 animates the gap left by a card removed at pre-draw. This path uses the same bounded
 ancestor checks and generic heading matching; no Photos version or obfuscated class
 is targeted, and no app animations are disabled. Pre-draw remains a fallback.
+
+
+### Localized account-menu offers (0.2.4)
+Inspected the connected phone's Chinese Drive/Contacts/Play Store hierarchies.
+Drive and Contacts expose og_bento_card_title. Play Store strips the resource
+name; the nested account-card stack provides the additional structural gate.
+This implementation adds no external source code or translation database.

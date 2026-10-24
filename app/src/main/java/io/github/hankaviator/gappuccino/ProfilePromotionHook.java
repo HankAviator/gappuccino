@@ -54,7 +54,7 @@ final class ProfilePromotionHook {
 
     static void install(boolean ai, boolean points) {
         hideAi = ai; hidePoints = points;
-        // Track only exact headings. No activity-wide tree walks or delayed scans.
+        // Track account-card titles and exact legacy headings. No activity-wide walks.
         HookRuntime.hookAllMethods(TextView.class, "onAttachedToWindow", new Callback() {
             @Override protected void afterHookedMethod(MethodHookParam param) { inspect((TextView) param.thisObject); }
         });
@@ -76,6 +76,13 @@ final class ProfilePromotionHook {
         if (!accepting || android.os.Looper.myLooper() != android.os.Looper.getMainLooper() || !view.isAttachedToWindow()) return;
         try {
             int kind = ProfilePromotionMatcher.kind(view.getText());
+            if (kind == 0 && ProfilePromotionMatcher.aiOfferHeading(view.getText())) {
+                try {
+                    if (view.getId() != View.NO_ID)
+                        kind = ProfilePromotionMatcher.kind(view.getText(),
+                                view.getResources().getResourceEntryName(view.getId()));
+                } catch (Exception ignored) { /* Unknown views keep their original behavior. */ }
+            }
             Integer previous = MARKERS.get(view);
             if (kind == 0) {
                 if (previous != null) { MARKERS.remove(view); observe(view.getRootView()); }
@@ -158,6 +165,7 @@ final class ProfilePromotionHook {
     private record ScanResult(boolean changed, boolean hasMarkers) {}
     private static ScanResult scan(View root) {
         ArrayList<TextView> markers = new ArrayList<>();
+        ArrayList<TextView> accountMarkers = new ArrayList<>();
         boolean account = false;
         for (Map.Entry<TextView, Integer> entry : MARKERS.entrySet()) {
             TextView node = entry.getKey();
@@ -165,7 +173,7 @@ final class ProfilePromotionHook {
             markers.add(node);
             if (entry.getValue() == ProfilePromotionMatcher.ACCOUNT) {
                 for (View current = node; current != null; current = parent(current)) {
-                    if (current.isClickable()) { account = true; break; }
+                    if (current.isClickable()) { account = true; accountMarkers.add(node); break; }
                     if (current == root) break;
                 }
             }
@@ -173,8 +181,12 @@ final class ProfilePromotionHook {
         Set<View> targets = Collections.newSetFromMap(new WeakHashMap<>());
         for (TextView node : markers) {
             int kind = MARKERS.get(node);
-            if (!(hideAi && kind == ProfilePromotionMatcher.AI) && !(hidePoints && kind == ProfilePromotionMatcher.POINTS)) continue;
-            if (!account && !hasBentoAncestor(node)) continue;
+            if (kind == ProfilePromotionMatcher.AI_CANDIDATE) {
+                if (!hideAi || !sharesAccountStack(node, accountMarkers)) continue;
+            } else {
+                if (!(hideAi && kind == ProfilePromotionMatcher.AI) && !(hidePoints && kind == ProfilePromotionMatcher.POINTS)) continue;
+                if (!account && !hasBentoAncestor(node)) continue;
+            }
             View target = removalTarget(node);
             if (target != null) targets.add(target);
         }
@@ -184,6 +196,22 @@ final class ProfilePromotionHook {
         }
         for (View target : targets) changed |= hide(target);
         return new ScanResult(changed, !markers.isEmpty());
+    }
+
+    private static boolean sharesAccountStack(View marker, ArrayList<TextView> accounts) {
+        View stack = cardStack(marker);
+        if (stack == null) return false;
+        for (TextView account : accounts) if (cardStack(account) == stack) return true;
+        return false;
+    }
+    private static View cardStack(View marker) {
+        for (int depth = 0; marker != null && depth < 12; depth++, marker = parent(marker)) {
+            if (!isRecycler(marker)) continue;
+            View card = parent(marker);
+            View stack = card == null ? null : parent(card);
+            return card != null && isCard(card) && stack != null && isRecycler(stack) ? stack : null;
+        }
+        return null;
     }
 
     private static boolean hasBentoAncestor(View view) {

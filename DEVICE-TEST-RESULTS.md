@@ -434,3 +434,36 @@ no scope changes. Generic promotion settings were preserved. Debug/release build
 40 unit tests, lint (zero errors) and release signature verification passed. The
 signed 0.1.14 APK was installed over wireless ADB. Inspection files and private UI
 captures remain under ignored `app/build/generic/`.
+
+## 0.2.4 — generic localized account-menu AI offers (24 October 2026)
+
+Fixed the visible Chinese heading 订阅 Google AI 方案. Existing recognition used
+exact translation lists and did not include this Simplified Chinese heading.
+Named Google menus now use og_bento_card_title plus the Google AI product brand,
+independent of the translated invitation verb/phrase. Normalization supports
+NFKC/full-width forms, Unicode space separators, missing spaces around Chinese,
+and bidi/format marks. Bare Google AI / Pro / Ultra status labels remain intact.
+
+Play Store obfuscates the resource entry name to 0_resource_name_obfuscated.
+That creates only a candidate marker: removal additionally requires the same
+nested RecyclerView/CardView account-card stack as the recognized clickable
+account-management control. Ordinary documents, email text, app content and
+unrelated stacks are not promoted to this fallback. Existing pre-draw ownership,
+restoration, no-polling behavior and Play Points filtering are retained.
+
+63 unit tests pass (zero failures/errors); offline debug build and lint pass
+(0 errors, 12 warnings). APK signature verification passed. Final installed
+version 0.2.4/code20, SHA256:
+2E99DB3D3BBBC6748F862FC0A14E654E9C344693B92CB1704D2CC90F4BEC5177.
+Chinese Drive and Contacts menus hid the AI offer while retaining account
+management. Final APK Play Store verification hid the AI offer and retained
+管理您的 Google 账号 and 付款和订阅. Drive/Contacts/Play Store were restarted for
+activation; other existing Google app processes may need restarting. No language,
+account, membership or subscription configuration was changed. No Compose-only
+layout support is claimed. Named-card tests include Chinese, French, Spanish,
+Japanese, Korean, Russian, Arabic and German headings; only Chinese was tested
+live. Existing Chrome work was preserved.
+
+Raw UI captures and logs are local under work/profile-locale/; they can include
+account details and are not intended for publication. Build log:
+work/profile-locale/build-verified.log; final UI: play-final.xml.

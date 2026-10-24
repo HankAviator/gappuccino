@@ -48,8 +48,11 @@ Restart affected apps after changing switches.
 **Generic → Hide Google AI plan promotion** controls all covered Google consumer
 apps. Play Store also
 has **Hide Play Points invitation**. These hide offers, without changing subscriptions
-or account membership. The current account-menu filter recognizes the English AI
-plan heading and English/Chinese Play Points invitation headings. Ordinary mentions
+or account membership. AI offers are recognized by the shared Google account-card
+title and product brand rather than a list of translated invitation phrases.
+For obfuscated Play Store resources, a candidate must share the nested card stack
+with the account-management control before removal. English/Chinese Play Points
+invitation headings remain supported. Ordinary mentions
 and existing points controls remain available. Recognized cards are filtered before
 drawing; recognized Bento cards are removed during binding/attachment to avoid a
 collapsing gap when the menu opens. No delayed retries or full-window scans are used.
