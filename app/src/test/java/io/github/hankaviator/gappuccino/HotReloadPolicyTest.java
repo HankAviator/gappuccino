@@ -6,7 +6,7 @@ import static org.junit.Assert.*;
 public class HotReloadPolicyTest {
     @Test public void genericOnlyMainProcessesCanReload() {
         for (String pkg : new String[]{"com.google.android.calendar", "com.google.android.apps.docs",
-                "com.google.android.apps.bard", "com.google.android.youtube", "com.android.chrome"})
+                "com.google.android.apps.bard", "com.google.android.youtube", "com.google.android.apps.translate"})
             assertTrue(pkg, HotReloadPolicy.supports(pkg, pkg));
     }
     @Test public void everyAppSpecificRecipeRetainsRestartRequirement() {

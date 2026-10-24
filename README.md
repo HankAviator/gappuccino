@@ -9,6 +9,7 @@ each app’s name and package, with accessible list switches and Android dynamic
 | App | Features |
 |---|---|
 | Google app profile menus | Hide Google AI plan offers in compatible account-menu cards; one shared switch under Generic |
+| Google Chrome | Automatically accept the “File might be harmful” download confirmation for APKs and other file types |
 | Google Photos | Open photo coordinates in maps; reconcile device changes; skip trash confirmation; use TCP during HyperOS mobile boost |
 | Gmail | Hide sponsored emails in Promotions and Social |
 | Google Keep | Skip ordinary note move-to-trash confirmations; retain shared-note, permanent-delete and reminder choices |
@@ -38,7 +39,7 @@ read-only preferences. When upgrading from the legacy module, Gappuccino imports
 its previous switches once using root; keep the existing installation and its data.
 Grant Gappuccino root access in your root manager before importing older settings.
 APK updates can hot reload the Generic filter in apps with no app-specific tweaks,
-such as Calendar, Drive and Chrome, when their profile menu is closed. Apps with
+such as Calendar, Drive and Translate, when their profile menu is closed. Apps with
 their own tweak page, active profile menus or a busy UI thread require an app restart.
 Restart affected apps after changing switches.
 
@@ -57,6 +58,7 @@ including unfamiliar Compose layouts or offer wording, retain their original UI.
 
 ## Compatibility
 
+- Chrome's switch skips the file-type confirmation through Chrome's own acceptance callback. Safe Browsing scans, malware-block recovery, enterprise-policy warnings and other download dialogs retain their original behavior. Restart Chrome after changing the switch.
 - Google Search, Play Store approval skipping, and Phone disclosure suppression discover compatible implementations automatically. Unsupported implementations retain their original behavior.
 - Phone notification routing uses stable Android pending-intent factories: Answer can stay in the current app, while tapping the notification opens the call screen. Recording eligibility currently supports `236.0.969488611-pixel` and `240.0.986973448-pixel`. HyperOS's separate call UI may still appear.
 - Recording disclosure suppression defaults off; actual call audio has not been verified.

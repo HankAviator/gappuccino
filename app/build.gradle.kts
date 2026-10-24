@@ -7,8 +7,8 @@ android {
         applicationId = "io.github.hankaviator.gappuccino"
         minSdk = 32
         targetSdk = 37
-        versionCode = 18
-        versionName = "0.2.2"
+        versionCode = 19
+        versionName = "0.2.3"
     }
     buildTypes {
         release { isMinifyEnabled = false; signingConfig = signingConfigs.getByName("debug") }

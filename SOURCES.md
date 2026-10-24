@@ -120,6 +120,26 @@ old handles. App-specific hooks, auxiliary processes and busy UI threads retain
 their restart requirement. No native libraries or workers are loaded by this
 supported reload path.
 
+## Chrome file-type download confirmation
+
+The implementation follows Chromium's
+[DangerousDownloadDialog](https://github.com/chromium/chromium/blob/main/chrome/browser/download/android/java/src/org/chromium/chrome/browser/download/dialogs/DangerousDownloadDialog.java)
+and its native-facing DangerousDownloadDialogBridge. A package-ready attach hook
+resolves the installed `chrome` split classloader; a trigger on the JNI bridge
+defers DEX discovery until the first download warning. The dialog is identified
+by `Download.DangerousDialog.Events`, its download-argument signature and the
+constructed controller's Callback.onResult boxing contract. Unknown or ambiguous
+implementations keep the normal confirmation. No obfuscated class/method name or
+Chrome version is hard-coded.
+
+The hook supplies Chrome's normal accept result (integer event 1 or boolean true,
+depending on the discovered contract) before displaying the warning. Newer shared
+dialogs are bypassed only when their danger flag is true. Chrome's own callback
+retains its pending-download cleanup and continuation behavior. Safe Browsing
+settings, policy-warning and malware-recovery dialogs are not hooked. The installed
+155.0.8059.84 split APK resolves an optimized static show method and integer result.
+Chrome has an app-specific page and therefore retains its app-restart requirement.
+
 ## Keep confirmation and Fit period entries
 
 Keep confirmation discovery uses dexlib2 to locate the dialog-fragment argument

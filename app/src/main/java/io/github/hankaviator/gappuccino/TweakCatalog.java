@@ -7,6 +7,8 @@ public final class TweakCatalog {
     public record Tweak(String key, String title, String description, boolean defaultEnabled) {}
     public record App(String packageName, String title, List<Tweak> tweaks) {}
     public static final List<App> APPS = withProfilePromotions(List.of(
+        new App("com.android.chrome", "Google Chrome", List.of(
+            new Tweak("chrome_skip_download_confirmation", "Skip harmful-file confirmation", "Automatically keep APKs and other files when Chrome asks ‘File might be harmful’. Safe Browsing scans and other download dialogs stay enabled.", true))),
         new App("com.google.android.apps.photos", "Google Photos", List.of(
             new Tweak("geo_intent_fix", "Open coordinates in maps", "Turn photo coordinates into map links with a visible pin.", true),
             new Tweak("reconcile_changes", "Reconcile device changes", "Apply recognized pending changes through Photos’ own review controls.", true),

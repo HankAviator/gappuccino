@@ -1,5 +1,39 @@
 # Device test results
 
+## Chrome file-type confirmation (0.2.3)
+
+October 21, 2026. Added Google Chrome's default-on **Skip harmful-file
+confirmation** switch. It supplies Chrome's own acceptance callback for the
+“File might be harmful” dialog. The hook does not change Safe Browsing settings,
+malware-recovery dialogs, enterprise warnings, duplicate-file prompts or install
+permissions. In newer shared dialogs it requires the dangerous-file flag.
+
+The installed Chrome 155.0.8059.84 APKs were inspected offline. Generic discovery
+found the optimized static dialog method `g47.a` in `split_chrome.apk`, with a
+Callback at argument 5, danger flag at argument 6, and integer confirmation event
+1. These obfuscated names are evidence only. Discovery uses the dialog histogram,
+argument types and constructed controller's callback-boxing contract. The native
+bridge trigger defers discovery until the first warning and scans once per process.
+
+The signed release APK was installed as version 0.2.3 / code 19. The Chrome settings
+page and enabled switch were checked; every pre-existing switch was preserved.
+Chrome was restarted and logged **Chrome download confirmation trigger installed**
+using its isolated Chrome split classloader. Chrome now has app-specific hooks and
+is excluded from generic-only hot reload; restart it after changes.
+
+All 59 unit tests, debug/release builds, lint (zero errors), release signature and
+whitespace checks pass. Six new tests cover integer versus boolean callbacks,
+renamed optimized methods, unrelated dialogs, ambiguous matches, conflicting
+boxing and unsupported argument layouts. The Android 12L compatibility check
+caught a Stream.toList call; it was replaced with an API-32-compatible loop.
+
+Live download validation was blocked by automatic approval review. Both a local
+fixture using the existing module APK and a safer fixture containing only inert
+text with an .apk extension were rejected with **blocked by policy**, without a
+more specific reason. Neither fixture server was launched and no test download
+occurred. Hook loading and offline discovery are verified; actual confirmation
+bypass and download completion remain unverified on-device.
+
 ## ASI removal (0.2.2)
 
 October 20, 2026. Removed Android System Intelligence from the settings catalog,

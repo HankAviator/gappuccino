@@ -9,6 +9,9 @@ public final class HookEntry implements FeatureInstaller {
         if (!TweakCatalog.isHookTarget(load.packageName)) return;
         run("Profile promotions", () -> installProfilePromotions(load.packageName, load.processName));
         switch (load.packageName) {
+            case "com.android.chrome":
+                if (load.packageName.equals(load.processName) && enabled("chrome_skip_download_confirmation")) run("Chrome downloads", ChromeDownloadHook::install);
+                break;
             case "com.google.android.keep":
                 if (load.packageName.equals(load.processName) && enabled("keep_skip_delete_confirmation")) run("Keep confirmation", KeepDeleteHook::install);
                 break;
