@@ -467,3 +467,21 @@ live. Existing Chrome work was preserved.
 Raw UI captures and logs are local under work/profile-locale/; they can include
 account details and are not intended for publication. Build log:
 work/profile-locale/build-verified.log; final UI: play-final.xml.
+
+## 0.2.5 — disable LSPosed hot reload (25 October 2026)
+
+Set autoHotReload=false and unconditionally reject onHotReloading, including
+manual requests for generic-only app processes. Removed generation-state
+restoration, the app-specific reload policy, and profile-filter retirement work.
+Account-menu filtering continues to use its normal startup and view lifecycle.
+Restart target apps after APK updates/settings changes, or reboot.
+
+62 unit tests passed with zero failures/errors, including manual-reload rejection
+without accessing handoff state and absence of a restoration callback. Offline
+build/lint passed (0 errors, 12 warnings). APK signature and API 102 metadata
+checks passed. APK contains neither onHotReloaded nor the obsolete HotReloadPolicy.
+
+Installed 0.2.5/code21 over ADB with Personal Tweaks 0.2.23/code32, then rebooted
+to activate both through normal process startup. APK SHA256:
+50B641BED79B77DDDE73FEB4C299D696553E8E9147D9FD7D6238FB9BBF942088.
+Build evidence stays local under ignored work/no-hot-reload/.

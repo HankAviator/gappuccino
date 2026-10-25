@@ -38,10 +38,10 @@ The settings app uses the modern LSPosed service to publish preferences. Target 
 read-only preferences. When upgrading from the legacy module, Gappuccino imports
 its previous switches once using root; keep the existing installation and its data.
 Grant Gappuccino root access in your root manager before importing older settings.
-APK updates can hot reload the Generic filter in apps with no app-specific tweaks,
-such as Calendar, Drive and Translate, when their profile menu is closed. Apps with
-their own tweak page, active profile menus or a busy UI thread require an app restart.
-Restart affected apps after changing switches.
+Since version 0.2.5, LSPosed hot reload is disabled for every app, including the
+Generic filter. Automatic updates and manual hot-reload requests do not replace
+hooks in running processes. Restart affected apps after APK updates or switch
+changes, or reboot to activate all updates together.
 
 ### Profile-menu promotions
 

@@ -20,38 +20,6 @@ final class ProfilePromotionHook {
     private static final Map<TextView, Integer> MARKERS = new WeakHashMap<>();
     private static final Map<View, Observer> OBSERVED = new WeakHashMap<>();
     private static boolean hideAi, hidePoints;
-    private static volatile boolean accepting = true;
-
-    /** Retire only with no attached menu observers or hidden cards to hand over. */
-    static boolean prepareForReload() {
-        if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) return retireOnMain();
-        android.os.Handler main = new android.os.Handler(android.os.Looper.getMainLooper());
-        Object lock = new Object();
-        boolean[] completed = {false}, cancelled = {false}, accepted = {false};
-        java.util.concurrent.CountDownLatch done = new java.util.concurrent.CountDownLatch(1);
-        Runnable task = () -> {
-            synchronized (lock) {
-                if (cancelled[0]) return;
-                accepted[0] = retireOnMain();
-                completed[0] = true;
-                done.countDown();
-            }
-        };
-        if (!main.post(task)) return false;
-        try { done.await(3, java.util.concurrent.TimeUnit.SECONDS); }
-        catch (InterruptedException error) { Thread.currentThread().interrupt(); }
-        synchronized (lock) {
-            if (!completed[0]) { cancelled[0] = true; main.removeCallbacks(task); return false; }
-            return accepted[0];
-        }
-    }
-    private static boolean retireOnMain() {
-        if (!OBSERVED.isEmpty() || !HIDDEN.isEmpty()) return false;
-        accepting = false;
-        MARKERS.clear();
-        return true;
-    }
-
     static void install(boolean ai, boolean points) {
         hideAi = ai; hidePoints = points;
         // Track account-card titles and exact legacy headings. No activity-wide walks.
@@ -73,7 +41,7 @@ final class ProfilePromotionHook {
 
     private static void inspect(TextView view) {
         // Google binds native UI on the main thread. Ignore unexpected background setters.
-        if (!accepting || android.os.Looper.myLooper() != android.os.Looper.getMainLooper() || !view.isAttachedToWindow()) return;
+        if (android.os.Looper.myLooper() != android.os.Looper.getMainLooper() || !view.isAttachedToWindow()) return;
         try {
             int kind = ProfilePromotionMatcher.kind(view.getText());
             if (kind == 0 && ProfilePromotionMatcher.aiOfferHeading(view.getText())) {
