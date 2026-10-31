@@ -37,6 +37,7 @@ import io.github.hankaviator.gdialertweak.testcall.TestCallManager;
 /** Two levels: affected apps with their icons, then each app's tweak switches. */
 public final class MainActivity extends ComponentActivity {
     private String selectedPackage;
+    private int homeScrollY;
     private LinearLayout root;
     private LinearLayout content;
     private NestedScrollView scroll;
@@ -45,6 +46,7 @@ public final class MainActivity extends ComponentActivity {
     private final Runnable frameworkChanged = () -> {
         if (!frameworkReady && FrameworkConnection.isReady()) {
             frameworkReady = true;
+            if (selectedPackage == null && scroll != null) homeScrollY = scroll.getScrollY();
             render();
         }
     };
@@ -56,7 +58,10 @@ public final class MainActivity extends ComponentActivity {
         frameworkReady = FrameworkConnection.isReady();
         FrameworkConnection.listen(frameworkChanged);
         FrameworkConnection.synchronize(this);
-        if (state != null) selectedPackage = state.getString("selected_app");
+        if (state != null) {
+            selectedPackage = state.getString("selected_app");
+            homeScrollY = state.getInt("home_scroll_y", 0);
+        }
         if (TweakCatalog.find(selectedPackage) == null) selectedPackage = null;
         WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
         getWindow().setStatusBarColor(Color.TRANSPARENT);
@@ -69,8 +74,6 @@ public final class MainActivity extends ComponentActivity {
         });
         render();
         // App pages restore their identified scrolling views and app-bar behavior automatically.
-        if (state != null && selectedPackage == null)
-            scroll.post(() -> scroll.scrollTo(0, state.getInt("scroll_y", 0)));
     }
 
     @Override protected void onDestroy() {
@@ -81,7 +84,7 @@ public final class MainActivity extends ComponentActivity {
     @Override protected void onSaveInstanceState(Bundle state) {
         super.onSaveInstanceState(state);
         state.putString("selected_app", selectedPackage);
-        state.putInt("scroll_y", scroll.getScrollY());
+        state.putInt("home_scroll_y", selectedPackage == null ? scroll.getScrollY() : homeScrollY);
     }
 
     private void showHome() { selectedPackage = null; render(); }
@@ -131,6 +134,9 @@ public final class MainActivity extends ComponentActivity {
         content.setPadding(dp(20), dp(12), dp(20), dp(28));
         scroll.addView(content);
         renderHome();
+        NestedScrollView homeScroll = scroll;
+        int savedPosition = homeScrollY;
+        homeScroll.post(() -> homeScroll.scrollTo(0, savedPosition));
         ViewCompat.requestApplyInsets(root);
     }
 
@@ -185,7 +191,7 @@ public final class MainActivity extends ComponentActivity {
                 info.setClassName("android.widget.Button");
             }
         });
-        card.setOnClickListener(v -> { selectedPackage = app.packageName(); render(); });
+        card.setOnClickListener(v -> { homeScrollY = scroll.getScrollY(); selectedPackage = app.packageName(); render(); });
         return card;
     }
 
