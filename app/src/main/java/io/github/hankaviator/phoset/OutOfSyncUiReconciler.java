@@ -32,8 +32,11 @@ final class OutOfSyncUiReconciler {
             Collections.synchronizedMap(new WeakHashMap<>());
     private static final Map<View, Boolean> CLICKED_BUTTONS =
             Collections.synchronizedMap(new WeakHashMap<>());
+    private static final Map<Activity, Boolean> WATCHING_REVIEWS =
+            Collections.synchronizedMap(new WeakHashMap<>());
     private static volatile long automaticReviewStarted;
     private static volatile int actionsThisReview;
+    private static WeakReference<View> pendingCard = new WeakReference<>(null);
     private static WeakReference<View> automaticChip = new WeakReference<>(null);
 
     private static final String[][] CARDS = {
@@ -86,13 +89,16 @@ final class OutOfSyncUiReconciler {
                     protected void afterHookedMethod(MethodHookParam param) {
                         View view = (View) param.thisObject;
                         if (!hasResourceName(view, "card_handle_all_button")
-                                && !hasResourceName(view, "empty_page_title_bottom")) {
+                                && !hasResourceName(view, "empty_page_title_bottom")
+                                && !hasResourceName(view, "og_bento_card_title")) {
                             return;
                         }
                         if (!FeatureFlags.isEnabled(FeatureFlags.RECONCILE_CHANGES)) {
                             return;
                         }
-                        if (hasResourceName(view, "card_handle_all_button")) {
+                        if (hasResourceName(view, "og_bento_card_title")) {
+                            view.postDelayed(() -> openProfileReview(view), 250L);
+                        } else if (hasResourceName(view, "card_handle_all_button")) {
                             view.postDelayed(() -> processCard(view), 500L);
                         } else if (hasResourceName(view, "empty_page_title_bottom")) {
                             view.postDelayed(() -> finishEmptyAutomaticReview(view), 1500L);
@@ -101,6 +107,23 @@ final class OutOfSyncUiReconciler {
                 });
         HookRuntime.log(TAG + ": resource-based review controls installed ("
                 + BuildConfig.VERSION_NAME + ")");
+    }
+
+    private static void openProfileReview(View title) {
+        if (!FeatureFlags.isEnabled(FeatureFlags.RECONCILE_CHANGES)
+                || !title.isAttachedToWindow() || !(title instanceof TextView text)) return;
+        String expected = resourceString(title.getResources(),
+                "photos_outofsync_strings_review_out_of_sync_text");
+        if (expected == null || !TextUtils.equals(text.getText(), expected)) return;
+        View current = title;
+        for (int depth = 0; depth < 6; depth++) {
+            if (current.isClickable() && current.hasOnClickListeners()) {
+                if (SCHEDULED_CHIPS.put(current, true) == null) openReview(current);
+                return;
+            }
+            if (!(current.getParent() instanceof View parent)) return;
+            current = parent;
+        }
     }
 
     private static boolean isReviewChip(View view) {
@@ -148,6 +171,10 @@ final class OutOfSyncUiReconciler {
         if (activity == null || !activity.getClass().getName().contains(".outofsync.ui.")) {
             return;
         }
+        if (!AutomaticReviewWindow.canFinish(activity)) return;
+        View pending = pendingCard.get();
+        if (pending != null && pending.isAttachedToWindow() && pending.isShown()) return;
+        pendingCard.clear();
         View card = findCard(button);
         if (card == null) {
             log("review card structure changed; action left for manual review");
@@ -179,10 +206,12 @@ final class OutOfSyncUiReconciler {
             AutomaticReviewWindow.leaveForManualReview(activity, "review action limit reached");
             return;
         }
+        pendingCard = new WeakReference<>(card);
         CLICKED_BUTTONS.put(button, true);
         actionsThisReview++;
         log("applying Photos review action: " + title.getText() + " (" + count + ")");
         if (!button.performClick()) {
+            pendingCard.clear();
             CLICKED_BUTTONS.remove(button);
             actionsThisReview--;
             log("Photos review button did not accept the click");
@@ -249,11 +278,15 @@ final class OutOfSyncUiReconciler {
     static void onAutomaticReviewCreated() {
         automaticReviewStarted = SystemClock.elapsedRealtime();
         actionsThisReview = 0;
+        pendingCard.clear();
+        CLICKED_BUTTONS.clear();
     }
 
     static void onAutomaticReviewAbandoned() {
         automaticReviewStarted = 0L;
         actionsThisReview = 0;
+        pendingCard.clear();
+        CLICKED_BUTTONS.clear();
         View chip = automaticChip.get();
         automaticChip.clear();
         if (chip != null) {
@@ -262,9 +295,14 @@ final class OutOfSyncUiReconciler {
     }
 
     static void watchForCompletedReview(Activity activity) {
+        if (WATCHING_REVIEWS.put(activity, true) == null) checkReview(activity);
+    }
+
+    private static void checkReview(Activity activity) {
         if (activity.isFinishing() || activity.isDestroyed()
                 || automaticReviewStarted == 0L
                 || SystemClock.elapsedRealtime() - automaticReviewStarted > REVIEW_WINDOW_MS) {
+            WATCHING_REVIEWS.remove(activity);
             return;
         }
         View decor = activity.getWindow().getDecorView();
@@ -273,10 +311,28 @@ final class OutOfSyncUiReconciler {
         if (emptyTitle != null && emptyTitle.isShown() && AutomaticReviewWindow.canFinish(activity)) {
             finishEmptyAutomaticReview(emptyTitle);
             if (automaticReviewStarted == 0L) {
+                WATCHING_REVIEWS.remove(activity);
                 return;
             }
         }
-        decor.postDelayed(() -> watchForCompletedReview(activity), 500L);
+        // A previous native action can detach its card without attaching a new
+        // button. Continue with one remaining card only after Photos resumes.
+        int buttonId = resourceId(decor, "card_handle_all_button");
+        View nextButton = buttonId == 0 ? null : findPendingButton(decor, buttonId);
+        if (nextButton != null) processCard(nextButton);
+        decor.postDelayed(() -> checkReview(activity), 500L);
+    }
+
+    private static View findPendingButton(View view, int id) {
+        if (!view.isShown()) return null;
+        if (view.getId() == id && view.isEnabled() && !CLICKED_BUTTONS.containsKey(view)) return view;
+        if (view instanceof ViewGroup group) {
+            for (int i = 0; i < group.getChildCount(); i++) {
+                View button = findPendingButton(group.getChildAt(i), id);
+                if (button != null) return button;
+            }
+        }
+        return null;
     }
 
     private static Activity activityFrom(Context context) {
