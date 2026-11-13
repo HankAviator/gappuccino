@@ -3,6 +3,9 @@ package io.github.hankaviator.ctsnativemenu;
 import io.github.hankaviator.gappuccino.runtime.*;
 
 
+import android.app.Activity;
+import android.app.Application;
+import android.os.Bundle;
 import android.app.SearchManager;
 import android.app.RemoteAction;
 import android.app.ActivityOptions;
@@ -43,13 +46,13 @@ public final class Hook implements FeatureInstaller {
                     Context c = (Context) h.args[0];
                     if (installed) return;
                     installed = true;
-                    install(c, p.classLoader);
+                    install(c, p.classLoader, (Application) h.thisObject);
                 } catch (Throwable e) { HookRuntime.log("CircleNativeMenu: generic discovery unavailable; original menu retained: " + e); }
             }
         });
     }
 
-    private static void install(Context context, ClassLoader cl) throws Exception {
+    private static void install(Context context, ClassLoader cl, Application application) throws Exception {
         System.loadLibrary("dexkit");
         try (DexKitBridge bridge = DexKitBridge.create(context.getApplicationInfo().sourceDir)) {
             List<ClassData> peers = bridge.findClass(FindClass.create().matcher(ClassMatcher.create()
@@ -104,10 +107,46 @@ public final class Hook implements FeatureInstaller {
                     } catch (Throwable e) { HookRuntime.log("CircleNativeMenu update: " + e); }
                 }
             }));
+            application.registerActivityLifecycleCallbacks(
+                    new Application.ActivityLifecycleCallbacks() {
+                        public void onActivityCreated(Activity activity, Bundle state) {}
+                        public void onActivityStarted(Activity activity) {}
+                        public void onActivityResumed(Activity activity) {}
+                        public void onActivityPaused(Activity activity) { dismissForActivity(activity); }
+                        public void onActivityStopped(Activity activity) { dismissForActivity(activity); }
+                        public void onActivitySaveInstanceState(Activity activity, Bundle state) {}
+                        public void onActivityDestroyed(Activity activity) { dismissForActivity(activity); }
+                    });
+            hooks.add(Reflection.findAndHookMethod(Activity.class, "dispatchTouchEvent", MotionEvent.class,
+                    new Callback() {
+                        protected void beforeHookedMethod(MethodHookParam param) {
+                            MotionEvent event = (MotionEvent) param.args[0];
+                            if (event.getActionMasked() == MotionEvent.ACTION_DOWN)
+                                dismissForActivity((Activity) param.thisObject);
+                        }
+                    }));
             HookRuntime.log("CircleNativeMenu: generic hooks installed " + android.os.Process.myPid());
         } catch (Throwable error) {
             for (Callback.Unhook hook : hooks) hook.unhook();
             throw new IllegalStateException("Lens hooks unavailable; original menu retained", error);
+        }
+    }
+
+    private static Activity owner(View view) {
+        Context context = view.getContext();
+        for (int depth = 0; context instanceof ContextWrapper && depth < 16; depth++) {
+            if (context instanceof Activity activity) return activity;
+            Context base = ((ContextWrapper) context).getBaseContext();
+            if (base == context) break;
+            context = base;
+        }
+        return null;
+    }
+
+    private static void dismissForActivity(Activity activity) {
+        for (Map.Entry<View, State> entry : new ArrayList<>(states.entrySet())) {
+            if (entry.getKey() != null && owner(entry.getKey()) == activity)
+                entry.getValue().finish();
         }
     }
 
@@ -139,10 +178,31 @@ public final class Hook implements FeatureInstaller {
         State(View v) {
             anchor = new WeakReference<>(v);
             v.getViewTreeObserver().addOnGlobalLayoutListener(() -> update());
+            v.getViewTreeObserver().addOnWindowFocusChangeListener(focused -> {
+                if (!focused) finish();
+            });
+            v.getViewTreeObserver().addOnPreDrawListener(() -> {
+                if (mode != null && !canShow(v)) finish();
+                return true;
+            });
             v.addOnAttachStateChangeListener(new View.OnAttachStateChangeListener() {
                 public void onViewAttachedToWindow(View v) {}
                 public void onViewDetachedFromWindow(View v) { finish(); states.remove(v); }
             });
+        }
+        boolean canShow(View view) {
+            if (!view.isAttachedToWindow() || !view.isShown() || !view.hasWindowFocus()
+                    || view.getWindowVisibility() != View.VISIBLE) return false;
+            Activity activity = owner(view);
+            if (activity != null && (activity.isFinishing() || activity.isDestroyed())) return false;
+            View current = view;
+            while (true) {
+                if (current.getAlpha() <= 0f) return false;
+                if (!(current.getParent() instanceof View parent)) break;
+                current = parent;
+            }
+            Rect visible = new Rect();
+            return view.getGlobalVisibleRect(visible) && !visible.isEmpty();
         }
         View buttons(View v) { return v.findViewById(v.getResources().getIdentifier("lens_action_menu_buttons", "id", GOOGLE)); }
         void finish() {
@@ -185,8 +245,12 @@ public final class Hook implements FeatureInstaller {
                 if (v == null || p == null) return;
                 View b = buttons(v);
                 String text = (String) mapping.text().invoke(p);
-                if (!v.isAttachedToWindow() || !v.isShown() || b == null || b.getVisibility() != View.VISIBLE || text.isEmpty()) {
-                    finish(); selected = ""; dismissed = "";
+                if (!canShow(v) || b == null || b.getVisibility() != View.VISIBLE || text.isEmpty()) {
+                    finish();
+                    if (text.isEmpty() || b == null || b.getVisibility() != View.VISIBLE) {
+                        selected = "";
+                        dismissed = "";
+                    }
                     if (b != null) { b.setAlpha(1f); b.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_AUTO); }
                     return;
                 }
