@@ -59,6 +59,22 @@ public final class CoordinateParserTest {
                 coordinate.toPinnedGeoUri());
     }
 
+    @Test
+    public void opensAmapPlaceDetailsWithGpsCoordinates() {
+        Coordinate coordinate = CoordinateParser.parsePair("30.250000,120.150000");
+        assertEquals("androidamap://viewReGeo?sourceApplication=GooglePhotos"
+                        + "&lat=30.25&lon=120.15&dev=1",
+                coordinate.toAmapPlaceUri());
+    }
+
+    @Test
+    public void preservesSignedCoordinatesForAmap() {
+        Coordinate coordinate = CoordinateParser.parsePair("-33.868800,151.209300");
+        assertEquals("androidamap://viewReGeo?sourceApplication=GooglePhotos"
+                        + "&lat=-33.8688&lon=151.2093&dev=1",
+                coordinate.toAmapPlaceUri());
+    }
+
     private static void assertGeo(String expected, Coordinate coordinate) {
         assertEquals(expected, coordinate.toGeoUri());
     }

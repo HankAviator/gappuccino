@@ -4,6 +4,7 @@ import io.github.hankaviator.gappuccino.runtime.*;
 
 
 import android.app.Instrumentation;
+import android.content.Context;
 import android.content.Intent;
 
 final class GeoIntentFix {
@@ -19,7 +20,9 @@ final class GeoIntentFix {
                 for (int index = 0; index < param.args.length; index++) {
                     if (param.args[index] instanceof Intent) {
                         Intent original = (Intent) param.args[index];
-                        Intent rewritten = IntentRewriter.rewrite(original);
+                        Context context = param.args[0] instanceof Context
+                                ? (Context) param.args[0] : null;
+                        Intent rewritten = IntentRewriter.rewrite(original, context);
                         if (rewritten != original) {
                             param.args[index] = rewritten;
                         }

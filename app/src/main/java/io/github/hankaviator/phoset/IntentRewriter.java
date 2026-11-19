@@ -1,13 +1,16 @@
 package io.github.hankaviator.phoset;
 
 import android.app.SearchManager;
+import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.content.pm.ResolveInfo;
 import android.net.Uri;
 
 final class IntentRewriter {
     private IntentRewriter() {}
 
-    static Intent rewrite(Intent original) {
+    static Intent rewrite(Intent original, Context context) {
         if (original == null) {
             return null;
         }
@@ -36,6 +39,21 @@ final class IntentRewriter {
         rewritten.setPackage(null);
         rewritten.setComponent(null);
         rewritten.setSelector(null);
+        if (context != null) {
+            ResolveInfo target = context.getPackageManager().resolveActivity(
+                    rewritten, PackageManager.MATCH_DEFAULT_ONLY);
+            if (target != null && target.activityInfo != null
+                    && "com.autonavi.minimap".equals(target.activityInfo.packageName)) {
+                // Amap interprets geo coordinate searches as routes. Its place URI
+                // opens details and converts the photo's GPS coordinates with dev=1.
+                Intent place = new Intent(Intent.ACTION_VIEW, Uri.parse(coordinate.toAmapPlaceUri()));
+                place.setPackage(target.activityInfo.packageName);
+                if (place.resolveActivity(context.getPackageManager()) != null) {
+                    place.setFlags(original.getFlags());
+                    return place;
+                }
+            }
+        }
         return rewritten;
     }
 }

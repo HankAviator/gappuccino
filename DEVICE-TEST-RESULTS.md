@@ -485,3 +485,26 @@ Installed 0.2.5/code21 over ADB with Personal Tweaks 0.2.23/code32, then reboote
 to activate both through normal process startup. APK SHA256:
 50B641BED79B77DDDE73FEB4C299D696553E8E9147D9FD7D6238FB9BBF942088.
 Build evidence stays local under ignored work/no-hot-reload/.
+
+## Photos coordinate links opening Amap directions (19 November 2026)
+
+Reproduced Photos' Open in map action opening Amap's driving-route planner.
+The existing geo coordinate link entered Amap's route handler. A standard
+geo:0,0 coordinate query also entered that handler, and viewMap did not open
+place details on the installed Amap build.
+
+When the default handler for the rewritten geo link is Amap, Photos now sends
+Amap's viewReGeo place-details URI with dev=1 for GPS coordinate conversion.
+The native URI is checked for a resolvable activity before use. Map-handler
+selection occurs only when opening a coordinate link.
+
+Verified through Photos 8.1.0.1020990585 on the phone with Amap 17.02.2.2014.
+Open in map displayed the location details after force-stopping Amap and again
+with Amap running in the background. Android's activity log confirmed the
+place-details URI originated from Photos. Synthetic public-coordinate checks
+also verified the cold and warm paths.
+
+69 unit tests passed with zero failures/errors. Debug build, lint (0 errors,
+12 warnings), APK signature verification and installation passed. Installed
+workspace APK SHA256 is
+8CF7EDAF9E387F5AF12DB8EC0F5522E1DA10CD7B85F359AF8B535AE48A93A825.

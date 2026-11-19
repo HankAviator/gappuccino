@@ -20,6 +20,13 @@ final class Coordinate {
         return toGeoUri() + "?q=" + toPair();
     }
 
+    String toAmapPlaceUri() {
+        return "androidamap://viewReGeo?sourceApplication=GooglePhotos"
+                + "&lat=" + latitude.toPlainString()
+                + "&lon=" + longitude.toPlainString()
+                + "&dev=1";
+    }
+
     private String toPair() {
         return latitude.toPlainString() + "," + longitude.toPlainString();
     }
