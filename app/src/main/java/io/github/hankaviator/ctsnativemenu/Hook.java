@@ -35,7 +35,8 @@ public final class Hook implements FeatureInstaller {
     private static final ExecutorService classificationExecutor = Executors.newFixedThreadPool(2);
     private static Mapping mapping;
     private static boolean installed;
-    private record Mapping(Class<?> controller, Method view, Method text, Method selectAll,
+    private static int activeToolbars;
+    record Mapping(Class<?> controller, Method view, Method text, Method selectAll,
                            Field peerOverlay, Field controllerOverlay) {}
 
     public void install(TargetPackage p) throws Throwable {
@@ -53,38 +54,10 @@ public final class Hook implements FeatureInstaller {
     }
 
     private static void install(Context context, ClassLoader cl, Application application) throws Exception {
-        System.loadLibrary("dexkit");
-        try (DexKitBridge bridge = DexKitBridge.create(context.getApplicationInfo().sourceDir)) {
-            List<ClassData> peers = bridge.findClass(FindClass.create().matcher(ClassMatcher.create()
-                    .usingStrings("Overflow back button clicked", "RuntimeException: Failed to copy text to clipboard.")));
-            if (peers.size() != 1) throw new IllegalStateException("Ambiguous Lens action-menu peer");
-            Class<?> peer = peers.get(0).getInstance(cl);
-            Method view = uniqueMethod(peer, method -> method.getParameterCount() == 0
-                    && method.getReturnType().getName().equals("com.google.android.libraries.lens.view.actionmenu.ActionMenuView"));
-            Method text = uniqueMethod(peer, method -> method.getParameterCount() == 0
-                    && method.getReturnType() == String.class);
-            List<MethodData> selects = bridge.findMethod(FindMethod.create().matcher(MethodMatcher.create()
-                    .paramCount(0).returnType("void")
-                    .usingStrings("Select-all-text did not resolve to a selection")));
-            if (selects.size() != 1) throw new IllegalStateException("Ambiguous Lens select-all action");
-            Method select = selects.get(0).getMethodInstance(cl);
-            List<Field> controllerFields = new ArrayList<>();
-            List<Field> peerFields = new ArrayList<>();
-            for (var used : selects.get(0).getUsingFields()) {
-                Field field = used.getField().getFieldInstance(cl);
-                if (Modifier.isStatic(field.getModifiers())
-                        || field.getDeclaringClass() != select.getDeclaringClass()) continue;
-                for (Field other : peer.getDeclaredFields()) {
-                    if (!Modifier.isStatic(other.getModifiers()) && field.getType() == other.getType()) {
-                        controllerFields.add(field); peerFields.add(other);
-                    }
-                }
-            }
-            if (controllerFields.size() != 1) throw new IllegalStateException("Ambiguous Lens overlay relationship");
-            Field controllerOverlay = controllerFields.get(0), peerOverlay = peerFields.get(0);
-            controllerOverlay.setAccessible(true); peerOverlay.setAccessible(true); select.setAccessible(true);
-            mapping = new Mapping(select.getDeclaringClass(), view, text, select, peerOverlay, controllerOverlay);
-        }
+        long start = System.nanoTime();
+        mapping = MappingCache.read(context, cl);
+        boolean cacheHit = mapping != null;
+        if (!cacheHit) mapping = discover(context, cl);
         List<Callback.Unhook> hooks = new ArrayList<>();
         try {
             hooks.addAll(HookRuntime.hookAllConstructors(mapping.controller(), new Callback() {
@@ -121,14 +94,51 @@ public final class Hook implements FeatureInstaller {
                     new Callback() {
                         protected void beforeHookedMethod(MethodHookParam param) {
                             MotionEvent event = (MotionEvent) param.args[0];
-                            if (event.getActionMasked() == MotionEvent.ACTION_DOWN)
+                            if (activeToolbars > 0 && event.getActionMasked() == MotionEvent.ACTION_DOWN)
                                 dismissForActivity((Activity) param.thisObject);
                         }
                     }));
-            HookRuntime.log("CircleNativeMenu: generic hooks installed " + android.os.Process.myPid());
+            if (!cacheHit) MappingCache.write(context, mapping);
+            HookRuntime.log("CircleNativeMenu: hooks installed, cache=" + (cacheHit ? "hit" : "miss")
+                    + ", setup_us=" + (System.nanoTime() - start) / 1000);
         } catch (Throwable error) {
             for (Callback.Unhook hook : hooks) hook.unhook();
             throw new IllegalStateException("Lens hooks unavailable; original menu retained", error);
+        }
+    }
+
+    private static Mapping discover(Context context, ClassLoader cl) throws Exception {
+        System.loadLibrary("dexkit");
+        try (DexKitBridge bridge = DexKitBridge.create(context.getApplicationInfo().sourceDir)) {
+            List<ClassData> peers = bridge.findClass(FindClass.create().matcher(ClassMatcher.create()
+                    .usingStrings("Overflow back button clicked", "RuntimeException: Failed to copy text to clipboard.")));
+            if (peers.size() != 1) throw new IllegalStateException("Ambiguous Lens action-menu peer");
+            Class<?> peer = peers.get(0).getInstance(cl);
+            Method view = uniqueMethod(peer, method -> method.getParameterCount() == 0
+                    && method.getReturnType().getName().equals("com.google.android.libraries.lens.view.actionmenu.ActionMenuView"));
+            Method text = uniqueMethod(peer, method -> method.getParameterCount() == 0
+                    && method.getReturnType() == String.class);
+            List<MethodData> selects = bridge.findMethod(FindMethod.create().matcher(MethodMatcher.create()
+                    .paramCount(0).returnType("void")
+                    .usingStrings("Select-all-text did not resolve to a selection")));
+            if (selects.size() != 1) throw new IllegalStateException("Ambiguous Lens select-all action");
+            Method select = selects.get(0).getMethodInstance(cl);
+            List<Field> controllerFields = new ArrayList<>();
+            List<Field> peerFields = new ArrayList<>();
+            for (var used : selects.get(0).getUsingFields()) {
+                Field field = used.getField().getFieldInstance(cl);
+                if (Modifier.isStatic(field.getModifiers())
+                        || field.getDeclaringClass() != select.getDeclaringClass()) continue;
+                for (Field other : peer.getDeclaredFields()) {
+                    if (!Modifier.isStatic(other.getModifiers()) && field.getType() == other.getType()) {
+                        controllerFields.add(field); peerFields.add(other);
+                    }
+                }
+            }
+            if (controllerFields.size() != 1) throw new IllegalStateException("Ambiguous Lens overlay relationship");
+            Field controllerOverlay = controllerFields.get(0), peerOverlay = peerFields.get(0);
+            controllerOverlay.setAccessible(true); peerOverlay.setAccessible(true); select.setAccessible(true);
+            return new Mapping(select.getDeclaringClass(), view, text, select, peerOverlay, controllerOverlay);
         }
     }
 
@@ -144,8 +154,9 @@ public final class Hook implements FeatureInstaller {
     }
 
     private static void dismissForActivity(Activity activity) {
+        if (activeToolbars == 0) return;
         for (Map.Entry<View, State> entry : new ArrayList<>(states.entrySet())) {
-            if (entry.getKey() != null && owner(entry.getKey()) == activity)
+            if (entry.getValue().mode != null && entry.getKey() != null && owner(entry.getKey()) == activity)
                 entry.getValue().finish();
         }
     }
@@ -175,19 +186,36 @@ public final class Hook implements FeatureInstaller {
             updatePending = true;
             view.post(() -> { updatePending = false; update(); });
         }
-        State(View v) {
-            anchor = new WeakReference<>(v);
-            v.getViewTreeObserver().addOnGlobalLayoutListener(() -> update());
-            v.getViewTreeObserver().addOnWindowFocusChangeListener(focused -> {
-                if (!focused) finish();
-            });
-            v.getViewTreeObserver().addOnPreDrawListener(() -> {
-                if (mode != null && !canShow(v)) finish();
-                return true;
-            });
-            v.addOnAttachStateChangeListener(new View.OnAttachStateChangeListener() {
-                public void onViewAttachedToWindow(View v) {}
-                public void onViewDetachedFromWindow(View v) { finish(); states.remove(v); }
+        final Rect visible = new Rect();
+        final ViewTreeObserver.OnGlobalLayoutListener layoutListener = this::update;
+        final ViewTreeObserver.OnWindowFocusChangeListener focusListener = focused -> {
+            if (!focused) finish();
+        };
+        final ViewTreeObserver.OnPreDrawListener drawListener = this::beforeDraw;
+
+        private boolean beforeDraw() {
+            View view = anchor.get();
+            if (mode != null && (view == null || !canShow(view))) finish();
+            return true;
+        }
+
+        State(View view) {
+            anchor = new WeakReference<>(view);
+            ViewTreeObserver tree = view.getViewTreeObserver();
+            tree.addOnGlobalLayoutListener(layoutListener);
+            tree.addOnWindowFocusChangeListener(focusListener);
+            tree.addOnPreDrawListener(drawListener);
+            view.addOnAttachStateChangeListener(new View.OnAttachStateChangeListener() {
+                public void onViewAttachedToWindow(View view) {}
+                public void onViewDetachedFromWindow(View view) {
+                    ViewTreeObserver observer = view.getViewTreeObserver();
+                    observer.removeOnGlobalLayoutListener(layoutListener);
+                    observer.removeOnWindowFocusChangeListener(focusListener);
+                    observer.removeOnPreDrawListener(drawListener);
+                    view.removeOnAttachStateChangeListener(this);
+                    finish();
+                    states.remove(view);
+                }
             });
         }
         boolean canShow(View view) {
@@ -201,14 +229,13 @@ public final class Hook implements FeatureInstaller {
                 if (!(current.getParent() instanceof View parent)) break;
                 current = parent;
             }
-            Rect visible = new Rect();
             return view.getGlobalVisibleRect(visible) && !visible.isEmpty();
         }
         View buttons(View v) { return v.findViewById(v.getResources().getIdentifier("lens_action_menu_buttons", "id", GOOGLE)); }
         void finish() {
             classificationGeneration++;
             smartActions = Collections.emptyList(); classifiedText = ""; smartMenuActions.clear();
-            if (mode != null) { ActionMode old = mode; mode = null; old.finish(); }
+            if (mode != null) { ActionMode old = mode; mode = null; activeToolbars--; old.finish(); }
         }
         void classify(Context context, String text) {
             final int generation = ++classificationGeneration;
@@ -258,7 +285,10 @@ public final class Hook implements FeatureInstaller {
                 if (changed) classify(v.getContext(), text);
                 if (mode == null && !text.equals(dismissed)) {
                     mode = v.startActionMode(this, ActionMode.TYPE_FLOATING);
-                    if (mode != null) HookRuntime.log("CircleNativeMenu: native toolbar shown");
+                    if (mode != null) {
+                        activeToolbars++;
+                        HookRuntime.log("CircleNativeMenu: native toolbar shown");
+                    }
                 } else if (mode != null && changed) { mode.invalidate(); mode.invalidateContentRect(); }
                 if (mode != null || text.equals(dismissed)) {
                     b.setAlpha(0f);
@@ -343,7 +373,10 @@ public final class Hook implements FeatureInstaller {
                 m.finish(); return true;
             } catch (Throwable e) { HookRuntime.log("CircleNativeMenu action: " + e); return false; }
         }
-        public void onDestroyActionMode(ActionMode m) { if (mode == m) mode = null; dismissed = selected; }
+        public void onDestroyActionMode(ActionMode m) {
+            if (mode == m) { mode = null; activeToolbars--; }
+            dismissed = selected;
+        }
         public void onGetContentRect(ActionMode m, View v, Rect out) {
             View b = buttons(v);
             if (b != null) {

@@ -11,6 +11,8 @@ import android.util.SparseArray;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewParent;
+import android.view.ViewTreeObserver;
+import android.os.Looper;
 import android.widget.TextView;
 
 import java.text.Normalizer;
@@ -28,7 +30,6 @@ public final class GreatGadsbye implements FeatureInstaller {
     private static final String MAPS_MAIN_ACTIVITY = "com.google.android.maps.MapsActivity";
     private static final String TAG = "GreatGadsbye";
     private static final int MAX_ANCESTORS = 16;
-    private static final long[] STARTUP_SCAN_DELAYS_MS = {250L, 1_000L, 2_500L, 5_000L};
     private static final Pattern WHITESPACE = Pattern.compile("\\s+");
 
     private static final Set<String> SPONSORED_LABELS = labels(
@@ -37,7 +38,7 @@ public final class GreatGadsbye implements FeatureInstaller {
             "赞助内容", "贊助內容", "赞助", "贊助", "реклама", "sponsrad"
     );
 
-    private static final WeakHashMap<Activity, ScanSchedule> OBSERVED_ACTIVITIES =
+    private static final WeakHashMap<View, ScanSchedule> OBSERVED_ACTIVITIES =
             new WeakHashMap<>();
     private static final WeakHashMap<View, SavedState> HIDDEN_VIEWS = new WeakHashMap<>();
     private static final SparseArray<String> RESOURCE_NAMES = new SparseArray<>();
@@ -71,6 +72,19 @@ public final class GreatGadsbye implements FeatureInstaller {
         });
 
         hookTextChanges();
+        HookRuntime.hookAllMethods(View.class, "dispatchAttachedToWindow", new Callback() {
+            @Override protected void afterHookedMethod(MethodHookParam param) {
+                inspectChangedView((View) param.thisObject);
+            }
+        });
+        HookRuntime.hookAllMethods(View.class, "dispatchDetachedFromWindow", new Callback() {
+            @Override protected void beforeHookedMethod(MethodHookParam param) {
+                View view = (View) param.thisObject;
+                if (!HIDDEN_VIEWS.isEmpty() && Looper.myLooper() == Looper.getMainLooper()) {
+                    queueChangedScope(view);
+                }
+            }
+        });
         if (FeatureSettings.FEATURE_GMAIL.equals(activeFeature)) {
             hookGmailViewInsertions();
         } else {
@@ -150,7 +164,8 @@ public final class GreatGadsbye implements FeatureInstaller {
     }
 
     private static void hookTextChanges() {
-        HookRuntime.hookAllMethods(TextView.class, "setText", new Callback() {
+        Reflection.findAndHookMethod(TextView.class, "setText", CharSequence.class,
+                TextView.BufferType.class, boolean.class, int.class, new Callback() {
             @Override
             protected void afterHookedMethod(MethodHookParam param) {
                 inspectChangedView((View) param.thisObject);
@@ -168,7 +183,8 @@ public final class GreatGadsbye implements FeatureInstaller {
     }
 
     private static void hookGmailViewInsertions() {
-        HookRuntime.hookAllMethods(ViewGroup.class, "addView", new Callback() {
+        Reflection.findAndHookMethod(ViewGroup.class, "addView", View.class,
+                int.class, ViewGroup.LayoutParams.class, new Callback() {
             @Override
             protected void beforeHookedMethod(MethodHookParam param) {
                 if (param.args.length == 0 || !(param.args[0] instanceof View)) {
@@ -186,55 +202,84 @@ public final class GreatGadsbye implements FeatureInstaller {
     }
 
     private static void inspectChangedView(View view) {
-        if (!isFeatureEnabled(view.getContext()) || !isSponsoredMarker(view)) {
-            return;
+        if (Looper.myLooper() != Looper.getMainLooper() || !view.isAttachedToWindow()
+                || !isFeatureEnabled(view.getContext())) return;
+        if (isSponsoredMarker(view)) {
+            View target = findRemovalTarget(view);
+            if (target != null) hide(target);
         }
-        View target = findRemovalTarget(view);
-        if (target != null) {
-            hide(target);
+
+        boolean map = FeatureSettings.FEATURE_MAPS.equals(activeFeature);
+        if (!HIDDEN_VIEWS.isEmpty() || (map && isOfferAction(view))) queueChangedScope(view);
+    }
+
+    private static boolean isOfferAction(View view) {
+        return (view instanceof TextView text && isMapAdAction(text.getText()))
+                || isMapAdAction(view.getContentDescription());
+    }
+
+    private static void queueChangedScope(View view) {
+        // Revalidate recycled rows and late offers beside a Maps sponsorship label.
+        View changedScope = null;
+        boolean map = FeatureSettings.FEATURE_MAPS.equals(activeFeature);
+        View current = view;
+        for (int depth = 0; current != null && depth < MAX_ANCESTORS; depth++) {
+            if (HIDDEN_VIEWS.containsKey(current)) changedScope = current;
+            if (map && "business_place_card".equals(resourceName(current))) {
+                changedScope = current;
+                break;
+            }
+            current = current.getParent() instanceof View parent ? parent : null;
+        }
+        if (changedScope != null) {
+            ScanSchedule schedule = OBSERVED_ACTIVITIES.get(view.getRootView());
+            if (schedule != null) schedule.enqueue(changedScope);
         }
     }
 
     private static void observe(Activity activity) {
         View root = activity.getWindow().getDecorView();
-        synchronized (OBSERVED_ACTIVITIES) {
-            if (!OBSERVED_ACTIVITIES.containsKey(activity)) {
-                ScanSchedule schedule = new ScanSchedule(root);
-                OBSERVED_ACTIVITIES.put(activity, schedule);
-                root.getViewTreeObserver().addOnGlobalLayoutListener(() -> {
-                    root.removeCallbacks(schedule.settledScan);
-                    root.postDelayed(schedule.settledScan, 300L);
-                });
-                schedule.postStartupScans();
-                HookRuntime.log(TAG + ": observing " + activity.getClass().getName());
-            }
+        if (!isFeatureEnabled(activity)) {
+            ScanSchedule existing = OBSERVED_ACTIVITIES.get(root);
+            if (existing != null) existing.initialScanQueued = false;
+            restoreAll();
+            return;
         }
-        scan(root);
+        ScanSchedule schedule = OBSERVED_ACTIVITIES.get(root);
+        if (schedule == null) {
+            schedule = new ScanSchedule();
+            OBSERVED_ACTIVITIES.put(root, schedule);
+            root.addOnAttachStateChangeListener(schedule);
+            root.getViewTreeObserver().addOnPreDrawListener(schedule);
+        }
+        if (schedule.initialScanQueued) return;
+        schedule.initialScanQueued = true;
+        schedule.enqueue(root);
     }
 
-    /** Returns true when a visibility change requires the current draw to be retried. */
     private static boolean scan(View root) {
-        if (root == null || !root.isAttachedToWindow()) {
-            return false;
-        }
-        if (!isFeatureEnabled(root.getContext())) {
-            return restoreAll();
-        }
-
-        Set<View> sponsoredViews = Collections.newSetFromMap(new WeakHashMap<>());
+        if (!root.isAttachedToWindow()) return false;
+        Set<View> sponsoredViews = new HashSet<>();
         collectSponsoredViews(root, sponsoredViews);
         boolean changed = false;
         synchronized (HIDDEN_VIEWS) {
             for (View oldView : new HashSet<>(HIDDEN_VIEWS.keySet())) {
-                if (!sponsoredViews.contains(oldView) && !containsAdSignature(oldView)) {
+                if (oldView != null && isWithin(oldView, root)
+                        && !sponsoredViews.contains(oldView) && !containsAdSignature(oldView)) {
                     changed |= restore(oldView);
                 }
             }
         }
-        for (View view : sponsoredViews) {
-            changed |= hide(view);
-        }
+        for (View view : sponsoredViews) changed |= hide(view);
         return changed;
+    }
+
+    private static boolean isWithin(View view, View root) {
+        for (View current = view; current != null;) {
+            if (current == root) return true;
+            current = current.getParent() instanceof View parent ? parent : null;
+        }
+        return false;
     }
 
     private static void collectSponsoredViews(View view, Set<View> output) {
@@ -565,32 +610,37 @@ public final class GreatGadsbye implements FeatureInstaller {
         return Collections.unmodifiableSet(result);
     }
 
-    private static final class ScanSchedule {
-        final View root;
-        final Runnable settledScan;
-        final Runnable[] startupScans = new Runnable[STARTUP_SCAN_DELAYS_MS.length];
+    private static final class ScanSchedule implements ViewTreeObserver.OnPreDrawListener,
+            View.OnAttachStateChangeListener {
+        private Set<View> pending = new HashSet<>();
+        private boolean initialScanQueued;
 
-        ScanSchedule(View root) {
-            this.root = root;
-            settledScan = () -> {
-                cancelStartupScans();
-                scan(root);
-            };
-            for (int i = 0; i < startupScans.length; i++) {
-                startupScans[i] = () -> scan(root);
+        void enqueue(View scope) {
+            for (View queued : pending) {
+                if (isWithin(scope, queued)) return;
             }
+            pending.removeIf(queued -> isWithin(queued, scope));
+            pending.add(scope);
         }
 
-        void postStartupScans() {
-            for (int i = 0; i < startupScans.length; i++) {
-                root.postDelayed(startupScans[i], STARTUP_SCAN_DELAYS_MS[i]);
+        @Override public boolean onPreDraw() {
+            if (pending.isEmpty()) return true;
+            Set<View> work = pending;
+            pending = new HashSet<>();
+            boolean changed = false;
+            for (View scope : work) {
+                if (isFeatureEnabled(scope.getContext())) changed |= scan(scope);
             }
+            return !changed;
         }
 
-        void cancelStartupScans() {
-            for (Runnable scan : startupScans) {
-                root.removeCallbacks(scan);
-            }
+        @Override public void onViewAttachedToWindow(View view) {}
+
+        @Override public void onViewDetachedFromWindow(View view) {
+            view.getViewTreeObserver().removeOnPreDrawListener(this);
+            view.removeOnAttachStateChangeListener(this);
+            pending.clear();
+            OBSERVED_ACTIVITIES.remove(view);
         }
     }
 

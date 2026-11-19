@@ -43,11 +43,12 @@ final class ProfilePromotionHook {
         // Google binds native UI on the main thread. Ignore unexpected background setters.
         if (android.os.Looper.myLooper() != android.os.Looper.getMainLooper() || !view.isAttachedToWindow()) return;
         try {
-            int kind = ProfilePromotionMatcher.kind(view.getText());
-            if (kind == 0 && ProfilePromotionMatcher.aiOfferHeading(view.getText())) {
+            int kind = ProfilePromotionMatcher.classify(view.getText());
+            if (kind == ProfilePromotionMatcher.AI_CANDIDATE) {
+                kind = 0;
                 try {
                     if (view.getId() != View.NO_ID)
-                        kind = ProfilePromotionMatcher.kind(view.getText(),
+                        kind = ProfilePromotionMatcher.kindForResource(
                                 view.getResources().getResourceEntryName(view.getId()));
                 } catch (Exception ignored) { /* Unknown views keep their original behavior. */ }
             }
